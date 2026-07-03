@@ -35,10 +35,35 @@ Then open `http://localhost:8888/world`. Netlify Dev emulates Blobs locally, so 
 
 ## deploy
 
-Push to a Netlify-connected repo, or:
+No environment variables or database setup required — Netlify Blobs is provisioned automatically.
 
-```bash
-npx netlify deploy --prod
+### option a: separate netlify site + proxy from 0x45o.com (this repo stays as-is)
+
+1. In Netlify: **Add new project → Import an existing project → GitHub → this repo**. Leave the build command empty; `netlify.toml` already sets the publish dir and functions dir. Deploy.
+2. In the repo of your main 0x45o.com site, proxy `/world` and its api to the new site (in `_redirects`, or the `[[redirects]]` equivalent in `netlify.toml`):
+
+```
+/world        https://YOUR-WORLD-SITE.netlify.app/world/      200
+/world/*      https://YOUR-WORLD-SITE.netlify.app/world/:splat 200
+/api/world    https://YOUR-WORLD-SITE.netlify.app/api/world   200
 ```
 
-No environment variables or database setup required — Netlify Blobs is provisioned automatically.
+Visitors see `0x45o.com/world`, the URL never changes, and the two sites deploy independently.
+
+### option b: fold it into the 0x45o.com repo (single site, no proxy)
+
+Copy into your main site's repo:
+
+- `world/` → `world/` (served at `/world` automatically)
+- `netlify/functions/world.mjs` and `netlify/functions/country-areas.mjs` → your functions directory
+- add `"@netlify/blobs"` to your site's `package.json` dependencies
+
+If your functions directory isn't `netlify/functions`, adjust accordingly — the function's route is set by `export const config = { path: '/api/world' }`, so no redirect rules are needed.
+
+### deploying from the cli instead
+
+```bash
+npx netlify login   # once
+npx netlify init    # link this repo to a new site, once
+npx netlify deploy --prod
+```
