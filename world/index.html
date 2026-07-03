@@ -56,6 +56,7 @@
             display: block;
         }
 
+        /* countries are either <path id="xx"> or <g id="xx"> with inner paths */
         #map path {
             fill: #e8e8e8;
             stroke: #fff;
@@ -64,11 +65,16 @@
             transition: fill .12s;
         }
 
-        #map path:hover { fill: #bbb; }
-        #map path.visited { fill: #000; }
-        #map path.visited:hover { fill: #333; }
+        #map path.country:hover,
+        #map g.country:hover path { fill: #bbb; }
 
-        #map path#_somaliland {
+        #map path.visited,
+        #map g.visited path { fill: #000; }
+
+        #map path.visited:hover,
+        #map g.visited:hover path { fill: #333; }
+
+        #map #_somaliland {
             pointer-events: none;
             fill: #f2f2f2;
             cursor: default;
@@ -365,16 +371,26 @@
 
   function toggleCountry(code) {
     if (!COUNTRIES[code]) return;
-    const path = mapEl.querySelector('#' + code);
+    const el = mapEl.querySelector('#' + code);
     if (visited.has(code)) {
       visited.delete(code);
-      if (path) path.classList.remove('visited');
+      if (el) el.classList.remove('visited');
     } else {
       visited.add(code);
-      if (path) path.classList.add('visited');
+      if (el) el.classList.add('visited');
     }
     persistVisited();
     updateStats();
+  }
+
+  // walks up from a click/hover target to the country element (path or group)
+  function countryElFrom(target) {
+    let el = target;
+    while (el && el !== mapEl) {
+      if (el.id && COUNTRIES[el.id]) return el;
+      el = el.parentElement;
+    }
+    return null;
   }
 
   // load + inject the svg map so its paths are clickable/styleable
@@ -386,22 +402,23 @@
       svg.removeAttribute('width');
       svg.removeAttribute('height');
 
-      for (const code of visited) {
-        const path = svg.querySelector('#' + code);
-        if (path) path.classList.add('visited');
+      for (const code of Object.keys(COUNTRIES)) {
+        const el = svg.querySelector('#' + code);
+        if (!el) continue;
+        el.classList.add('country');
+        if (visited.has(code)) el.classList.add('visited');
       }
 
       svg.addEventListener('click', e => {
-        const path = e.target.closest('path[id]');
-        if (!path) return;
-        toggleCountry(path.id);
+        const el = countryElFrom(e.target);
+        if (el) toggleCountry(el.id);
       });
 
       svg.addEventListener('mousemove', e => {
-        const path = e.target.closest('path[id]');
-        const c = path && COUNTRIES[path.id];
+        const el = countryElFrom(e.target);
+        const c = el && COUNTRIES[el.id];
         if (!c) { tooltip.style.display = 'none'; return; }
-        tooltip.textContent = c.name.toLowerCase() + (visited.has(path.id) ? ' ✓' : '');
+        tooltip.textContent = c.name.toLowerCase() + (visited.has(el.id) ? ' ✓' : '');
         tooltip.style.display = 'block';
         tooltip.style.left = (e.clientX + 12) + 'px';
         tooltip.style.top = (e.clientY - 28) + 'px';
@@ -507,7 +524,7 @@
   resetBtn.addEventListener('click', () => {
     visited.clear();
     persistVisited();
-    mapEl.querySelectorAll('path.visited').forEach(p => p.classList.remove('visited'));
+    mapEl.querySelectorAll('.visited').forEach(p => p.classList.remove('visited'));
     updateStats();
     setStatus('');
     compareStats.innerHTML = '';
