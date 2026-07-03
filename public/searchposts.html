@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tweet search</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: monospace;
+    font-size: 13px;
+    background: #fff;
+    color: #000;
+    padding: 80px 24px;
+    max-width: 680px;
+    margin: 0 auto;
+    transition: background 0.2s, color 0.2s;
+  }
+
+  body.dark { background: #0a0a0a; color: #ccc; }
+  body.dark .tw { border-bottom-color: #1a1a1a; }
+  body.dark .tw-meta { color: #444; }
+  body.dark #drop { border-color: #333; color: #444; }
+  body.dark #drop:hover { border-color: #ccc; color: #ccc; }
+  body.dark .step { color: #ccc; }
+  body.dark .step a { color: #ccc; }
+  body.dark .muted { color: #444; }
+  body.dark .disclaimer { color: #444; }
+  body.dark #cache-note { color: #444; }
+  body.dark #cache-note button { color: #444; }
+  body.dark #cache-note button:hover { color: #ccc; }
+  body.dark #info { color: #444; }
+  body.dark #filters button { color: #444; }
+  body.dark #filters button.on { color: #ccc; }
+  body.dark #pag button { color: #444; }
+  body.dark #pag button.on { color: #ccc; }
+  body.dark #search-row input { border-bottom-color: #ccc; background: transparent; color: #ccc; }
+  body.dark #modal { background: #0a0a0a; }
+  body.dark #modal-date { color: #444; }
+  body.dark #modal-text { color: #ccc; }
+  body.dark #modal-stats { color: #444; }
+  body.dark #modal-stats span b { color: #ccc; }
+  body.dark #modal-link { color: #ccc; border-bottom-color: #ccc; }
+  body.dark #modal-back { color: #444; }
+  body.dark #modal-back:hover { color: #ccc; }
+
+  #theme-btn {
+    position: fixed;
+    top: 24px; left: 24px;
+    background: none; border: none;
+    font-family: monospace; font-size: 11px;
+    color: #aaa; cursor: pointer; padding: 0;
+    z-index: 50;
+  }
+  #theme-btn:hover { color: #000; }
+  body.dark #theme-btn { color: #555; }
+  body.dark #theme-btn:hover { color: #ccc; }
+
+  #back-btn {
+    position: fixed;
+    top: 24px; right: 24px;
+    background: none; border: none;
+    font-family: monospace; font-size: 11px;
+    color: #aaa; text-decoration: none;
+    z-index: 50;
+  }
+  #back-btn:hover { color: #000; }
+  body.dark #back-btn { color: #555; }
+  body.dark #back-btn:hover { color: #ccc; }
+
+  #drop {
+    border: 1px dashed #ccc;
+    padding: 40px;
+    text-align: center;
+    cursor: pointer;
+    color: #999;
+    position: relative;
+    margin-bottom: 8px;
+  }
+  #drop input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  #drop:hover { border-color: #000; color: #000; }
+
+  #cache-note { font-size: 11px; color: #aaa; margin-bottom: 32px; }
+  #cache-note button {
+    background: none; border: none; font-family: monospace; font-size: 11px;
+    color: #aaa; cursor: pointer; text-decoration: underline; padding: 0;
+  }
+  #cache-note button:hover { color: #000; }
+
+  #search-row { display: none; margin-bottom: 16px; }
+  #search-row input {
+    width: 100%;
+    border: none;
+    border-bottom: 1px solid #000;
+    outline: none;
+    font-family: monospace;
+    font-size: 13px;
+    padding: 6px 0;
+  }
+
+  #filters { display: none; margin-bottom: 24px; }
+  #filters button {
+    background: none; border: none;
+    font-family: monospace; font-size: 11px;
+    cursor: pointer; color: #999; margin-right: 12px; padding: 0;
+  }
+  #filters button.on { color: #000; text-decoration: underline; }
+  #filters [data-s] { color: #999; }
+  #filters [data-s].on { color: #000; text-decoration: underline; }
+
+  #info { font-size: 11px; color: #999; margin-bottom: 16px; }
+
+  #instructions { margin-bottom: 40px; }
+  .step { font-size: 12px; color: #000; line-height: 2.2; }
+  .step a { color: #000; }
+  .step a:hover { opacity: 0.5; }
+  .muted { color: #aaa; }
+  .disclaimer { font-size: 11px; color: #aaa; margin-top: 16px; }
+
+  .tw { padding: 12px 0; border-bottom: 1px solid #eee; cursor: pointer; }
+  .tw:hover .tw-text { opacity: 0.6; }
+  .tw-meta { font-size: 11px; color: #aaa; margin-bottom: 4px; }
+  .tw-text { line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .tw-text mark { background: #ff0; }
+
+  #pag { margin-top: 24px; font-size: 11px; }
+  #pag button {
+    background: none; border: none;
+    font-family: monospace; font-size: 11px;
+    cursor: pointer; color: #999; margin-right: 8px;
+  }
+  #pag button.on { color: #000; text-decoration: underline; }
+  #pag button:disabled { opacity: 0.3; cursor: default; }
+
+  /* modal */
+  #modal { display: none; position: fixed; inset: 0; background: #fff; z-index: 100; overflow-y: auto; }
+  #modal.open { display: block; }
+
+  #modal-back {
+    position: fixed; top: 20px; left: 24px;
+    background: none; border: none;
+    font-family: monospace; font-size: 13px;
+    cursor: pointer; color: #999; z-index: 101;
+  }
+  #modal-back:hover { color: #000; }
+
+  #modal-inner { max-width: 680px; margin: 0 auto; padding: 60px 24px 60px; }
+  #modal-date { font-size: 11px; color: #aaa; margin-bottom: 12px; }
+  #modal-text { font-size: 14px; line-height: 1.7; white-space: pre-wrap; word-break: break-word; margin-bottom: 20px; }
+  #modal-stats { font-size: 11px; color: #999; margin-bottom: 20px; display: flex; gap: 24px; }
+  #modal-stats span b { color: #000; }
+  #modal-link {
+    display: inline-block; font-family: monospace; font-size: 11px;
+    color: #000; text-decoration: none; border-bottom: 1px solid #000; padding-bottom: 1px;
+  }
+  #modal-link:hover { opacity: 0.5; }
+</style>
+</head>
+<body>
+
+<button id="theme-btn" onclick="toggleTheme()">dark</button>
+<a id="back-btn" href="https://0x45o.com">back →</a>
+
+<div id="drop">
+  <input type="file" id="file-input" accept=".js,.json">
+  drop tweet.js here
+</div>
+
+<div id="instructions">
+  <div class="step">1. follow <a href="https://x.com/0x45o" target="_blank">@0x45o</a></div>
+  <div class="step">2. save this page <span class="muted">(bookmark)</span></div>
+  <div class="step">3. request your archive <span class="muted">— x.com → settings → your account → download an archive of your data</span></div>
+  <div class="step">4. upload your data <span class="muted">— extract the zip → data → tweet.js</span></div>
+  <div class="step">5. search your posts</div>
+  <div class="disclaimer">your data stays in your browser. nothing is uploaded anywhere.</div>
+</div>
+<div id="cache-note" style="display:none">
+  loaded from cache — <button onclick="clearCache()">clear & re-upload</button>
+</div>
+
+<div id="search-row">
+  <input type="text" id="q" placeholder="search..." autocomplete="off" spellcheck="false">
+</div>
+<div id="filters">
+  <button class="on" data-f="all">all</button>
+  <button data-f="tweet">tweets</button>
+  <button data-f="reply">replies</button>
+  <button data-f="rt">rts</button>
+  <span style="color:#ddd;margin-right:12px">|</span>
+  <button class="on" data-s="newest">newest</button>
+  <button data-s="oldest">oldest</button>
+</div>
+<div id="info"></div>
+<div id="list"></div>
+<div id="pag"></div>
+
+<div id="modal">
+  <button id="modal-back" onclick="closeModal()">← back</button>
+  <div id="modal-inner">
+    <div id="modal-date"></div>
+    <div id="modal-text"></div>
+    <div id="modal-stats">
+      <span>&lt;3 <b id="m-likes">0</b></span>
+      <span>rt <b id="m-rts">0</b></span>
+      <span>bm <b id="m-bm">0</b></span>
+    </div>
+    <a id="modal-link" target="_blank">open on x ↗</a>
+  </div>
+</div>
+
+<script>
+let all = [], filtered = [], query = '', filter = 'all', sort = 'newest', page = 1;
+const PER = 30;
+const DB_NAME = 'tweetarchive', DB_STORE = 'tweets', DB_VER = 1;
+
+// ── IndexedDB ──────────────────────────────────────────
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(DB_STORE);
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = e => rej(e);
+  });
+}
+
+async function saveToCache(tweets) {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(tweets, 'all');
+    tx.oncomplete = res;
+    tx.onerror = rej;
+  });
+}
+
+async function loadFromCache() {
+  const db = await openDB();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readonly');
+    const req = tx.objectStore(DB_STORE).get('all');
+    req.onsuccess = e => res(e.target.result || null);
+    req.onerror = rej;
+  });
+}
+
+async function clearCache() {
+  const db = await openDB();
+  await new Promise((res, rej) => {
+    const tx = db.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).clear();
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+  location.reload();
+}
+
+// ── startup: try cache first ───────────────────────────
+(async () => {
+  try {
+    const cached = await loadFromCache();
+    if (cached && cached.length) {
+      all = cached;
+      document.getElementById('instructions').style.display = 'none';
+      document.getElementById('drop').style.display = 'none';
+      document.getElementById('cache-note').style.display = 'block';
+      document.getElementById('search-row').style.display = 'block';
+      document.getElementById('filters').style.display = 'block';
+      document.getElementById('q').focus();
+      run();
+    }
+  } catch(e) { /* no cache, show drop zone */ }
+})();
+
+// ── file loading ───────────────────────────────────────
+function decodeEntities(s) {
+  const t = document.createElement('textarea');
+  t.innerHTML = s; return t.value;
+}
+
+document.getElementById('drop').addEventListener('dragover', e => e.preventDefault());
+document.getElementById('drop').addEventListener('drop', e => { e.preventDefault(); load(e.dataTransfer.files[0]); });
+document.getElementById('file-input').addEventListener('change', e => load(e.target.files[0]));
+
+async function load(file) {
+  const text = await file.text();
+  let data;
+  const m = text.match(/=\s*(\[[\s\S]*\])/);
+  try { data = JSON.parse(m ? m[1] : text); } catch(e) { alert('parse error'); return; }
+
+  all = (Array.isArray(data) ? data : data.tweets || data)
+    .map(i => i.tweet || i)
+    .filter(t => t && (t.full_text || t.text))
+    .map(t => {
+      const raw = t.full_text || t.text || '';
+      let txt = raw;
+      const urls = t.entities?.urls || [];
+      urls.forEach(u => { if (u.expanded_url) txt = txt.replace(u.url, u.expanded_url); });
+      const mediaItems = t.extended_entities?.media || t.entities?.media || [];
+      mediaItems.forEach(u => { txt = txt.replace(u.url, '').trim(); });
+      txt = decodeEntities(txt);
+      return {
+        id: t.id_str,
+        text: txt,
+        date: new Date(t.created_at).getTime(),
+        likes: parseInt(t.favorite_count || 0),
+        retweets: parseInt(t.retweet_count || 0),
+        bookmarks: parseInt(t.bookmark_count || 0),
+        isReply: !!t.in_reply_to_status_id_str,
+        isRT: raw.startsWith('RT @')
+      };
+    });
+
+  all.sort((a,b) => b.date - a.date);
+
+  // save to IndexedDB
+  try { await saveToCache(all); } catch(e) { console.warn('cache save failed', e); }
+
+  document.getElementById('instructions').style.display = 'none';
+  document.getElementById('drop').style.display = 'none';
+  document.getElementById('cache-note').style.display = 'block';
+  document.getElementById('search-row').style.display = 'block';
+  document.getElementById('filters').style.display = 'block';
+  document.getElementById('q').focus();
+  run();
+}
+
+// ── search / filter ────────────────────────────────────
+document.getElementById('q').addEventListener('input', e => { query = e.target.value; page = 1; run(); });
+document.querySelectorAll('[data-f]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('[data-f]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); filter = b.dataset.f; page = 1; run();
+  });
+});
+document.querySelectorAll('[data-s]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('[data-s]').forEach(x => x.classList.remove('on'));
+    b.classList.add('on'); sort = b.dataset.s; page = 1; run();
+  });
+});
+
+function run() {
+  let r = all;
+  if (filter === 'tweet') r = r.filter(t => !t.isReply && !t.isRT);
+  else if (filter === 'reply') r = r.filter(t => t.isReply);
+  else if (filter === 'rt') r = r.filter(t => t.isRT);
+  if (query) {
+    const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+    r = r.filter(t => terms.every(w => t.text.toLowerCase().includes(w)));
+  }
+  if (sort === 'newest') r = [...r].sort((a,b) => b.date - a.date);
+  else if (sort === 'oldest') r = [...r].sort((a,b) => a.date - b.date);
+  else if (sort === 'likes') r = [...r].sort((a,b) => b.likes - a.likes);
+  else if (sort === 'rts') r = [...r].sort((a,b) => b.retweets - a.retweets);
+  filtered = r;
+  render();
+}
+
+function render() {
+  const total = filtered.length;
+  const start = (page-1)*PER;
+  const slice = filtered.slice(start, start+PER);
+
+  document.getElementById('info').textContent = total ? `${total.toLocaleString()} results` : 'no results';
+
+  document.getElementById('list').innerHTML = slice.map((t, i) => {
+    const d = new Date(t.date).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'});
+    const body = query ? highlight(esc(t.text), query) : esc(t.text);
+    return `<div class="tw" onclick="openModal(${start+i})">
+      <div class="tw-meta">${d}</div>
+      <div class="tw-text">${body}</div>
+    </div>`;
+  }).join('');
+
+  const pages = Math.ceil(total/PER);
+  let pag = '';
+  if (pages > 1) {
+    pag += `<button ${page===1?'disabled':''} onclick="go(${page-1})">← prev</button>`;
+    for (let p = Math.max(1,page-3); p <= Math.min(pages,page+3); p++)
+      pag += `<button class="${p===page?'on':''}" onclick="go(${p})">${p}</button>`;
+    pag += `<button ${page===pages?'disabled':''} onclick="go(${page+1})">next →</button>`;
+  }
+  document.getElementById('pag').innerHTML = pag;
+}
+
+function openModal(idx) {
+  const t = filtered[idx];
+  const d = new Date(t.date).toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric'})
+          + ' · ' + new Date(t.date).toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'});
+  document.getElementById('modal-date').textContent = d;
+  document.getElementById('modal-text').textContent = t.text;
+  document.getElementById('m-likes').textContent = t.likes.toLocaleString();
+  document.getElementById('m-rts').textContent = t.retweets.toLocaleString();
+  document.getElementById('m-bm').textContent = t.bookmarks.toLocaleString();
+  const link = document.getElementById('modal-link');
+  if (t.id) { link.href = `https://x.com/i/status/${t.id}`; link.style.display = 'inline-block'; }
+  else { link.style.display = 'none'; }
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+function go(p) { page = p; render(); scrollTo(0,0); }
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function highlight(s, q) {
+  q.split(/\s+/).filter(Boolean).forEach(w => {
+    s = s.replace(new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi'), m => `<mark>${m}</mark>`);
+  });
+  return s;
+}
+
+function toggleTheme() {
+  const dark = document.body.classList.toggle('dark');
+  document.getElementById('theme-btn').textContent = dark ? 'light' : 'dark';
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+}
+// restore theme
+if (localStorage.getItem('theme') === 'dark') {
+  document.body.classList.add('dark');
+  document.addEventListener('DOMContentLoaded', () => {
+    const btn = document.getElementById('theme-btn');
+    if (btn) btn.textContent = 'light';
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>cursorpet, a pet that follows your cursor (mac)</title>
+    <meta name="description" content="cursorpet is a tiny desktop pet that follows your cursor around your Mac. Lives in the menu bar. Bring your own image or GIF.">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: white;
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .container { width: 100%; max-width: 460px; }
+
+        h1 {
+            font-weight: normal;
+            font-size: 13px;
+            margin-bottom: 16px;
+            color: #000;
+        }
+
+        p {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        a {
+            font-family: monospace;
+            font-size: 13px;
+            color: #000;
+            text-decoration: none;
+        }
+        a:hover { text-decoration: underline; }
+
+        #back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 13px;
+            color: #aaa;
+        }
+        #back-btn:hover { color: #000; }
+
+        .section {
+            text-align: left;
+            margin: 0 auto 28px;
+            max-width: 360px;
+        }
+
+        .label {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 10px;
+            text-align: left;
+        }
+
+        ul { list-style: none; }
+        li {
+            font-size: 13px;
+            color: #555;
+            line-height: 1.7;
+        }
+        li::before { content: "· "; color: #aaa; }
+
+        .cta {
+            display: inline-block;
+            margin-bottom: 32px;
+            padding: 8px 16px;
+            border: 1px solid #000;
+            border-radius: 3px;
+            color: #000;
+        }
+        .cta:hover { background: #000; color: #fff; text-decoration: none; }
+
+        .shots { display: flex; flex-direction: column; gap: 12px; }
+        .shot {
+            width: 100%;
+            border: 1px solid #eee;
+            border-radius: 6px;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <a id="back-btn" href="/">← back</a>
+    <div class="container">
+        <h1>cursorpet</h1>
+        <p>a little pet that follows your cursor around your mac,<br>hanging from a playful rope. lives in your menu bar.</p>
+
+        <!-- Replace # with the Mac App Store link once the app is live -->
+        <a class="cta" href="#">download on the mac app store →</a>
+
+        <div class="section">
+            <div class="label">what it does</div>
+            <ul>
+                <li>follows your cursor on a springy rope</li>
+                <li>lives in the menu bar, no dock clutter</li>
+                <li>pick a built-in pixel pet, or import your own image / gif</li>
+                <li>customize size, outline, and rope length / color</li>
+                <li>works across monitors and over full-screen apps</li>
+                <li>optional fade when your cursor goes idle</li>
+                <li>a hidden bounce mini-game to discover</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <div class="label">screenshots</div>
+            <div class="shots">
+                <img class="shot" src="/cursorpet-onboarding.png" alt="cursorpet welcome screen hinting at the hidden bounce game, with the pet hanging from its rope">
+                <img class="shot" src="/cursorpet-game.png" alt="cursorpet settings showing bounce game stats and colors, with the live mini-game score on screen">
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="label">how to use it</div>
+            <p style="margin-bottom:0;">after launch, look for the pawprint icon in your menu bar (top-right). a pet appears attached to your cursor. <b>left-click</b> the pawprint for settings, <b>right-click</b> for the menu.</p>
+        </div>
+
+        <div class="section">
+            <div class="label">support</div>
+            <p style="margin-bottom:0;">questions or bug reports? dm <a href="https://x.com/0x45o" target="_blank" rel="noopener">@0x45o</a> on x, or email <a href="mailto:moving.narastek@gmail.com">moving.narastek@gmail.com</a>.</p>
+        </div>
+
+        <div class="section" id="privacy">
+            <div class="label">privacy policy</div>
+            <p>cursorpet does not collect, store, or transmit any personal data. there are no accounts, no analytics, and no tracking.</p>
+            <p>the app makes no network requests and works fully offline.</p>
+            <p>your settings and any image you choose to import are stored locally on your mac, inside the app's sandbox container, and never leave your device. you can remove an imported image at any time from the app's settings.</p>
+            <p>cursorpet does not share data with third parties, because it does not collect any.</p>
+            <p style="margin-bottom:0;">questions about this policy? use the support contacts above. last updated: june 2, 2026.</p>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Will AI Take My Job?</title>
+    <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+    <style>
+        body {
+            font-family: 'Comic Neue', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: white;
+            text-align: center;
+        }
+        .container, .loading, .result-container {
+            max-width: 600px;
+            padding: 20px;
+        }
+        h1 {
+            font-size: 2em;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            width: 80%;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 1em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background-color: #0056b3; }
+        #back-btn {
+            position: fixed;
+            top: 20px; left: 20px;
+            font-family: 'Comic Neue', sans-serif;
+            font-size: 13px;
+            color: #aaa;
+            text-decoration: none;
+        }
+        #back-btn:hover { color: #000; }
+        #result-message {
+            margin-top: 20px;
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        #job-display {
+            margin-bottom: 20px;
+            font-size: 1em;
+            color: #000;
+        }
+        .hidden { display: none; }
+        .loading { font-size: 1.5em; color: #000; }
+        #ai-span { display: inline-block; width: 60px; text-align: center; }
+    </style>
+</head>
+<body>
+    <a id="back-btn" href="https://0x45o.com">← back</a>
+    <div id="main-container" class="container">
+        <h1>WILL <span id="ai-span">AI</span> TAKE MY JOB?</h1>
+        <input type="text" id="jobInput" placeholder="insert job">
+        <button onclick="checkJob()">check</button>
+    </div>
+
+    <div id="loading-screen" class="loading hidden">checking</div>
+
+    <div id="result-container" class="result-container hidden">
+        <div id="capture-area">
+            <div id="result-message"></div>
+            <div id="job-display"></div>
+            <button onclick="checkAgain()">check again</button>
+            <button onclick="shareOnX()">share on X</button>
+            <button onclick="downloadImage()">download image</button>
+        </div>
+    </div>
+
+    <script>
+        const fonts = ['Comic Neue','Impact','Courier New','Times New Roman','Arial','Verdana','Georgia','Trebuchet MS','Lucida Console','Palatino Linotype'];
+        let fontIndex = 0;
+        const aiSpan = document.getElementById('ai-span');
+        setInterval(() => { aiSpan.style.fontFamily = fonts[fontIndex]; fontIndex = (fontIndex + 1) % fonts.length; }, 100);
+
+        const protectedJobs = ['shitposter','elon musk','mathematician','physicist','retard','gooner','ai','clanker','unemployed','artificial intelligence','human','god','mom','fuck'];
+        let userJob = '', resultMessage = '';
+
+        function checkJob() {
+            const jobInput = document.getElementById('jobInput').value;
+            userJob = jobInput;
+            resultMessage = protectedJobs.includes(jobInput.toLowerCase().trim())
+                ? 'NO, AI WILL NOT TAKE YOUR JOB.'
+                : 'YES, AI WILL TAKE YOUR JOB.';
+            document.getElementById('main-container').classList.add('hidden');
+            document.getElementById('loading-screen').classList.remove('hidden');
+            setTimeout(() => {
+                document.getElementById('loading-screen').classList.add('hidden');
+                document.getElementById('result-container').classList.remove('hidden');
+                const r = document.getElementById('result-message');
+                r.innerText = resultMessage;
+                r.style.color = resultMessage.startsWith('NO') ? '#00ff00' : '#ff0000';
+                document.getElementById('job-display').innerText = `[job: ${userJob}]`;
+            }, 6000);
+        }
+
+        function checkAgain() {
+            document.getElementById('result-container').classList.add('hidden');
+            document.getElementById('main-container').classList.remove('hidden');
+            document.getElementById('jobInput').value = '';
+            userJob = ''; resultMessage = '';
+        }
+
+        function shareOnX() {
+            html2canvas(document.getElementById('capture-area'), {scale: 3}).then(canvas => {
+                canvas.toBlob(blob => {
+                    const file = new File([blob], 'result.png', {type: 'image/png'});
+                    if (navigator.canShare && navigator.canShare({files: [file]})) {
+                        navigator.share({files: [file], title: 'Will AI Take My Job?'}).catch(console.error);
+                    } else {
+                        window.open('https://x.com/intent/post', '_blank');
+                        const a = document.createElement('a');
+                        a.href = URL.createObjectURL(blob);
+                        a.download = 'result.png'; a.click();
+                    }
+                });
+            });
+        }
+
+        function downloadImage() {
+            html2canvas(document.getElementById('capture-area'), {scale: 3}).then(canvas => {
+                canvas.toBlob(blob => {
+                    const a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'result.png'; a.click();
+                });
+            });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>@0x45o</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: white;
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .container { width: 100%; max-width: 480px; }
+
+        h1 {
+            font-weight: normal;
+            font-size: 13px;
+            margin-bottom: 36px;
+            color: #000;
+        }
+
+        h1 a {
+            color: #000;
+            text-decoration: none;
+        }
+        h1 a:hover { text-decoration: underline; }
+
+        .section { margin-bottom: 32px; }
+
+        .label {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+
+        .links {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        a {
+            font-family: monospace;
+            font-size: 13px;
+            color: #000;
+            text-decoration: none;
+        }
+
+        a:hover { text-decoration: underline; }
+
+        .signup {
+            margin-top: 8px;
+            padding-top: 32px;
+            border-top: 1px solid #eee;
+            padding-bottom: 32px;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 32px;
+        }
+
+        .signup .label { margin-bottom: 16px; }
+
+        #signup-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 14px;
+        }
+
+        #email-input {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 240px;
+            text-align: center;
+            color: #000;
+            background: white;
+            outline: none;
+        }
+
+        #email-input:focus { border-color: #000; }
+
+        #signup-form button {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 16px;
+            border: 1px solid #000;
+            border-radius: 3px;
+            background: white;
+            color: #000;
+            cursor: pointer;
+        }
+
+        #signup-form button:hover { background: #000; color: #fff; }
+        #signup-form button:disabled { opacity: .5; cursor: not-allowed; }
+
+        #signup-status {
+            margin-top: 12px;
+            font-size: 11px;
+            color: #aaa;
+            min-height: 14px;
+        }
+
+        #signup-status.ok { color: #1a7f37; }
+        #signup-status.err { color: #b00020; }
+
+        .hp-field {
+            position: absolute;
+            left: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #subscriber-count {
+            margin-top: 14px;
+            font-size: 11px;
+            color: #aaa;
+            opacity: 0;
+            transition: opacity .4s;
+        }
+
+        #date-added {
+            margin-top: 6px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        #visits {
+            margin-top: 36px;
+            font-size: 11px;
+            color: #aaa;
+            opacity: 0;
+            transition: opacity .4s;
+        }
+
+        /* MODAL */
+        .modal-backdrop {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        .modal-backdrop.open { display: flex; }
+
+        .modal {
+            background: white;
+            border-radius: 4px;
+            padding: 28px 24px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+            position: relative;
+        }
+
+        .modal .label { margin-bottom: 20px; }
+
+        .modal-checks {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: flex-start;
+            margin-bottom: 24px;
+            padding-left: 60px;
+        }
+
+        .modal-checks label {
+            font-family: monospace;
+            font-size: 13px;
+            color: #000;
+            cursor: pointer;
+            user-select: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-checks input[type="checkbox"] {
+            margin: 0;
+            cursor: pointer;
+            accent-color: #000;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .modal-buttons button {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 16px;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+
+        .modal-buttons .cancel {
+            border: 1px solid #ddd;
+            background: white;
+            color: #555;
+        }
+        .modal-buttons .cancel:hover { border-color: #000; color: #000; }
+
+        .modal-buttons .confirm {
+            border: 1px solid #000;
+            background: white;
+            color: #000;
+        }
+        .modal-buttons .confirm:hover { background: #000; color: #fff; }
+        .modal-buttons .confirm:disabled { opacity: .5; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>hi, i am <a href="https://x.com/0x45o" target="_blank" rel="noopener">@0x45o</a></h1>
+
+        <div class="section">
+            <div class="label">apps (coming soon):</div>
+            <div class="links">
+                <a href="https://0x45o.com/breakdown">breakdown. (ios game)</a>
+                <a href="https://0x45o.com/rocketfocus">rocket focus (ios)</a>
+                <a href="https://0x45o.com/cursorpet">cursorpet (mac)</a>
+            </div>
+        </div>
+
+        <div class="signup">
+            <div class="label">get an email when one of the apps drops:</div>
+            <form id="signup-form" novalidate>
+                <label class="hp-field" aria-hidden="true">
+                    website
+                    <input type="text" id="hp-website" name="website" tabindex="-1" autocomplete="off">
+                </label>
+                <input type="email" id="email-input" placeholder="your@email.com" required autocomplete="email">
+                <button type="submit">notify me</button>
+            </form>
+            <div id="signup-status"></div>
+            <div id="subscriber-count"></div>
+            <div id="date-added">date added: may 29, 2026</div>
+        </div>
+
+        <div class="section">
+            <div class="label">mini projects:</div>
+            <div class="links">
+                <a href="https://0x45o.com/textamine">textamine (text plus dopamine)</a>
+                <a href="https://0x45o.com/mosaic">followers mosaic (10k edition)</a>
+                <a href="https://0x45o.com/myaijob">will ai take my job?</a>
+                <a href="https://0x45o.com/isagihereyet">is AGI here yet?</a>
+                <a href="https://0x45o.com/searchposts">search your x posts</a>
+                <a href="https://0x45o.com/scrollmeter">scroll meter</a>
+                <a href="/world">world (map every country you visited)</a>
+                <a href="/stock">0x45 corp</a>
+            </div>
+        </div>
+
+        <div id="visits"></div>
+    </div>
+
+    <!-- modal -->
+    <div class="modal-backdrop" id="modal">
+        <div class="modal">
+            <div class="label">which apps?</div>
+            <div class="modal-checks">
+                <label><input type="checkbox" id="check-all" checked> all apps</label>
+                <label><input type="checkbox" name="app" value="breakdown"> breakdown</label>
+                <label><input type="checkbox" name="app" value="rocketfocus"> rocket focus</label>
+                <label><input type="checkbox" name="app" value="cursorpet"> cursorpet</label>
+            </div>
+            <div class="modal-buttons">
+                <button type="button" class="cancel" id="modal-cancel">cancel</button>
+                <button type="button" class="confirm" id="modal-confirm">confirm</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+  // baseline impressions count (X impressions before site visit tracking existed)
+  const VISITS_OFFSET = 252024;
+
+  // visits counter
+  (function() {
+    const el = document.getElementById('visits');
+    if (!el) return;
+    const tracked = sessionStorage.getItem('0x45o-visit-tracked');
+    const method = tracked ? 'GET' : 'POST';
+    fetch('/.netlify/functions/visits', { method })
+      .then(r => r.json())
+      .then(data => {
+        if (!tracked) sessionStorage.setItem('0x45o-visit-tracked', '1');
+        if (typeof data.visits === 'number') {
+          const total = data.visits + VISITS_OFFSET;
+          el.textContent = total.toLocaleString() + ' visits';
+          el.style.opacity = '1';
+        }
+      })
+      .catch(err => console.error('[visits] fetch failed:', err));
+  })();
+
+  // subscriber count
+  const countEl = document.getElementById('subscriber-count');
+  function loadCount() {
+    fetch('/.netlify/functions/subscribers-count')
+      .then(r => r.json())
+      .then(data => {
+        if (typeof data.count === 'number') {
+          const n = data.count;
+          countEl.textContent = n === 1
+            ? '1 person signed up so far'
+            : n.toLocaleString() + ' people signed up so far';
+          countEl.style.opacity = '1';
+        }
+      })
+      .catch(err => console.error('[count] fetch failed:', err));
+  }
+  loadCount();
+
+  // modal + signup form
+  (function() {
+    const form = document.getElementById('signup-form');
+    const emailInput = document.getElementById('email-input');
+    const status = document.getElementById('signup-status');
+    const notifyBtn = form.querySelector('button');
+
+    const modal = document.getElementById('modal');
+    const checkAll = document.getElementById('check-all');
+    const specificChecks = modal.querySelectorAll('input[name="app"]');
+    const cancelBtn = document.getElementById('modal-cancel');
+    const confirmBtn = document.getElementById('modal-confirm');
+    let modalOpenedAt = null;
+
+    function setStatus(msg, kind) {
+      status.textContent = msg;
+      status.className = kind || '';
+    }
+
+    function resetModalState() {
+      checkAll.checked = true;
+      specificChecks.forEach(c => c.checked = false);
+    }
+
+    function openModal() {
+      resetModalState();
+      modalOpenedAt = new Date().toISOString();
+      modal.classList.add('open');
+    }
+    function closeModal() {
+      modal.classList.remove('open');
+    }
+
+    checkAll.addEventListener('change', () => {
+      if (checkAll.checked) {
+        specificChecks.forEach(c => c.checked = false);
+      }
+    });
+
+    specificChecks.forEach(c => {
+      c.addEventListener('change', () => {
+        if (c.checked) checkAll.checked = false;
+      });
+    });
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && modal.classList.contains('open')) closeModal();
+    });
+    cancelBtn.addEventListener('click', closeModal);
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      setStatus('');
+      const email = emailInput.value.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setStatus('invalid email', 'err');
+        return;
+      }
+      openModal();
+    });
+
+    confirmBtn.addEventListener('click', async () => {
+      const email = emailInput.value.trim();
+      let apps;
+      if (checkAll.checked) {
+        apps = ['breakdown', 'rocketfocus', 'cursorpet'];
+      } else {
+        apps = Array.from(specificChecks).filter(c => c.checked).map(c => c.value);
+      }
+      if (apps.length === 0) {
+        apps = ['breakdown', 'rocketfocus', 'cursorpet'];
+      }
+
+      confirmBtn.disabled = true;
+      notifyBtn.disabled = true;
+      try {
+        const res = await fetch('/.netlify/functions/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            apps,
+            website: document.getElementById('hp-website').value,
+            modalOpenedAt,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          setStatus('youre on the list. see you soon.', 'ok');
+          form.reset();
+          loadCount();
+          closeModal();
+        } else {
+          setStatus(data.error || 'something went wrong', 'err');
+          closeModal();
+        }
+      } catch (err) {
+        setStatus('network error, try again', 'err');
+        closeModal();
+      } finally {
+        confirmBtn.disabled = false;
+        notifyBtn.disabled = false;
+      }
+    });
+  })();
+</script>
+</body>
+</html>
