@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>world — @0x45o</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            background: white;
+            text-align: center;
+            padding: 40px 20px;
+            color: #000;
+        }
+
+        .container { width: 100%; max-width: 860px; }
+
+        h1 {
+            font-weight: normal;
+            font-size: 13px;
+            margin-bottom: 8px;
+        }
+
+        h1 a { color: #000; text-decoration: none; }
+        h1 a:hover { text-decoration: underline; }
+
+        .label {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 12px;
+        }
+
+        .sub {
+            font-size: 11px;
+            color: #aaa;
+            margin-bottom: 28px;
+        }
+
+        /* MAP */
+        #map {
+            width: 100%;
+            margin-bottom: 8px;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        #map svg {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        #map path {
+            fill: #e8e8e8;
+            stroke: #fff;
+            stroke-width: 0.5;
+            cursor: pointer;
+            transition: fill .12s;
+        }
+
+        #map path:hover { fill: #bbb; }
+        #map path.visited { fill: #000; }
+        #map path.visited:hover { fill: #333; }
+
+        #map path#_somaliland {
+            pointer-events: none;
+            fill: #f2f2f2;
+            cursor: default;
+        }
+
+        #map-loading {
+            font-size: 11px;
+            color: #aaa;
+            padding: 80px 0;
+        }
+
+        /* tooltip */
+        #tooltip {
+            position: fixed;
+            display: none;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+            font-size: 11px;
+            padding: 4px 8px;
+            border-radius: 3px;
+            pointer-events: none;
+            z-index: 10;
+            white-space: nowrap;
+        }
+
+        /* search */
+        .search {
+            margin-bottom: 28px;
+        }
+
+        #country-input {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 260px;
+            text-align: center;
+            color: #000;
+            background: white;
+            outline: none;
+        }
+
+        #country-input:focus { border-color: #000; }
+
+        /* STATS */
+        .stats {
+            padding-top: 28px;
+            border-top: 1px solid #eee;
+            margin-bottom: 28px;
+        }
+
+        .stat-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 16px;
+        }
+
+        .stat-row { font-size: 13px; }
+        .stat-row b { font-weight: normal; }
+        .stat-row .num { color: #000; }
+        .stat-row .rest { color: #aaa; font-size: 11px; }
+
+        .bar {
+            width: 260px;
+            max-width: 100%;
+            height: 4px;
+            background: #eee;
+            border-radius: 2px;
+            margin: 4px auto 0;
+            overflow: hidden;
+        }
+
+        .bar > div {
+            height: 100%;
+            background: #000;
+            width: 0%;
+            transition: width .3s;
+        }
+
+        #visited-list {
+            margin-top: 20px;
+            font-size: 11px;
+            color: #aaa;
+            line-height: 1.7;
+            max-width: 640px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* SAVE / COMPARE */
+        .compare {
+            padding-top: 28px;
+            padding-bottom: 28px;
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+            margin-bottom: 28px;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 14px;
+        }
+
+        button {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 16px;
+            border: 1px solid #000;
+            border-radius: 3px;
+            background: white;
+            color: #000;
+            cursor: pointer;
+        }
+
+        button:hover { background: #000; color: #fff; }
+        button:disabled { opacity: .5; cursor: not-allowed; }
+
+        button.secondary {
+            border: 1px solid #ddd;
+            color: #555;
+        }
+        button.secondary:hover { background: white; border-color: #000; color: #000; }
+
+        #save-status {
+            font-size: 11px;
+            color: #aaa;
+            min-height: 14px;
+            margin-bottom: 12px;
+        }
+
+        #save-status.ok { color: #1a7f37; }
+        #save-status.err { color: #b00020; }
+
+        #compare-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #compare-stats .stat-row .rest { color: #aaa; }
+
+        #global-count {
+            font-size: 11px;
+            color: #aaa;
+            opacity: 0;
+            transition: opacity .4s;
+        }
+
+        .footer { font-size: 11px; color: #aaa; }
+        .footer a { color: #aaa; font-size: 11px; text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>world.</h1>
+        <div class="sub">click every country you have visited</div>
+
+        <div id="map"><div id="map-loading">loading map...</div></div>
+        <div id="tooltip"></div>
+
+        <div class="search">
+            <input id="country-input" list="country-names" placeholder="or type a country name..." autocomplete="off">
+            <datalist id="country-names"></datalist>
+        </div>
+
+        <div class="stats">
+            <div class="label">your stats:</div>
+            <div class="stat-rows">
+                <div class="stat-row">
+                    <span class="num" id="stat-countries">0 / 179</span> <span class="rest">countries visited (<span id="stat-countries-pct">0%</span>)</span>
+                    <div class="bar"><div id="bar-countries"></div></div>
+                </div>
+                <div class="stat-row">
+                    <span class="num" id="stat-land">0%</span> <span class="rest">of the world's land</span>
+                    <div class="bar"><div id="bar-land"></div></div>
+                </div>
+                <div class="stat-row">
+                    <span class="num" id="stat-earth">0%</span> <span class="rest">of the whole earth (land + oceans)</span>
+                    <div class="bar"><div id="bar-earth"></div></div>
+                </div>
+            </div>
+            <div id="visited-list"></div>
+        </div>
+
+        <div class="compare">
+            <div class="label">how do you compare to everyone else?</div>
+            <div class="buttons">
+                <button id="save-btn">save + compare</button>
+                <button id="reset-btn" class="secondary">reset</button>
+            </div>
+            <div id="save-status"></div>
+            <div id="compare-stats"></div>
+            <div id="global-count"></div>
+        </div>
+
+        <div class="footer">
+            <a href="/">back to 0x45o.com</a>
+        </div>
+    </div>
+
+<script src="countries.js"></script>
+<script>
+  // surface of the planet, in km^2
+  const EARTH_TOTAL_AREA = 510072000; // land + oceans
+  const EARTH_LAND_AREA = 148940000;  // land only
+
+  const TOTAL_COUNTRIES = Object.keys(COUNTRIES).length;
+  const STORAGE_KEY = '0x45o-world-visited';
+  const ID_KEY = '0x45o-world-id';
+  const API_URL = '/api/world';
+
+  const visited = new Set(loadVisited());
+
+  const mapEl = document.getElementById('map');
+  const tooltip = document.getElementById('tooltip');
+  const input = document.getElementById('country-input');
+  const saveBtn = document.getElementById('save-btn');
+  const resetBtn = document.getElementById('reset-btn');
+  const saveStatus = document.getElementById('save-status');
+  const compareStats = document.getElementById('compare-stats');
+  const globalCount = document.getElementById('global-count');
+
+  function loadVisited() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+      return Array.isArray(raw) ? raw.filter(c => COUNTRIES[c]) : [];
+    } catch { return []; }
+  }
+
+  function persistVisited() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...visited]));
+  }
+
+  function getUserId() {
+    let id = localStorage.getItem(ID_KEY);
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        'u-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(ID_KEY, id);
+    }
+    return id;
+  }
+
+  // name lookup for the search input
+  const nameToCode = {};
+  const datalist = document.getElementById('country-names');
+  for (const [code, c] of Object.entries(COUNTRIES)) {
+    nameToCode[c.name.toLowerCase()] = code;
+    const opt = document.createElement('option');
+    opt.value = c.name;
+    datalist.appendChild(opt);
+  }
+
+  function visitedArea() {
+    let sum = 0;
+    for (const code of visited) sum += COUNTRIES[code].area;
+    return sum;
+  }
+
+  function fmtPct(x, digits) {
+    return x.toFixed(digits).replace(/\.?0+$/, '') + '%';
+  }
+
+  function updateStats() {
+    const n = visited.size;
+    const area = visitedArea();
+    const countriesPct = (n / TOTAL_COUNTRIES) * 100;
+    const landPct = (area / EARTH_LAND_AREA) * 100;
+    const earthPct = (area / EARTH_TOTAL_AREA) * 100;
+
+    document.getElementById('stat-countries').textContent = n + ' / ' + TOTAL_COUNTRIES;
+    document.getElementById('stat-countries-pct').textContent = fmtPct(countriesPct, 1);
+    document.getElementById('stat-land').textContent = fmtPct(landPct, 2);
+    document.getElementById('stat-earth').textContent = fmtPct(earthPct, 2);
+
+    document.getElementById('bar-countries').style.width = countriesPct + '%';
+    document.getElementById('bar-land').style.width = landPct + '%';
+    document.getElementById('bar-earth').style.width = earthPct + '%';
+
+    const listEl = document.getElementById('visited-list');
+    if (n === 0) {
+      listEl.textContent = 'nowhere yet. click the map.';
+    } else {
+      const names = [...visited].map(c => COUNTRIES[c].name).sort();
+      listEl.textContent = names.join(', ');
+    }
+  }
+
+  function toggleCountry(code) {
+    if (!COUNTRIES[code]) return;
+    const path = mapEl.querySelector('#' + code);
+    if (visited.has(code)) {
+      visited.delete(code);
+      if (path) path.classList.remove('visited');
+    } else {
+      visited.add(code);
+      if (path) path.classList.add('visited');
+    }
+    persistVisited();
+    updateStats();
+  }
+
+  // load + inject the svg map so its paths are clickable/styleable
+  fetch('world-map.svg')
+    .then(r => r.text())
+    .then(svgText => {
+      mapEl.innerHTML = svgText;
+      const svg = mapEl.querySelector('svg');
+      svg.removeAttribute('width');
+      svg.removeAttribute('height');
+
+      for (const code of visited) {
+        const path = svg.querySelector('#' + code);
+        if (path) path.classList.add('visited');
+      }
+
+      svg.addEventListener('click', e => {
+        const path = e.target.closest('path[id]');
+        if (!path) return;
+        toggleCountry(path.id);
+      });
+
+      svg.addEventListener('mousemove', e => {
+        const path = e.target.closest('path[id]');
+        const c = path && COUNTRIES[path.id];
+        if (!c) { tooltip.style.display = 'none'; return; }
+        tooltip.textContent = c.name.toLowerCase() + (visited.has(path.id) ? ' ✓' : '');
+        tooltip.style.display = 'block';
+        tooltip.style.left = (e.clientX + 12) + 'px';
+        tooltip.style.top = (e.clientY - 28) + 'px';
+      });
+
+      svg.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+      });
+    })
+    .catch(() => {
+      document.getElementById('map-loading').textContent = 'map failed to load, refresh?';
+    });
+
+  // search input toggles a country by name
+  input.addEventListener('change', () => {
+    const code = nameToCode[input.value.trim().toLowerCase()];
+    if (code) {
+      toggleCountry(code);
+      input.value = '';
+    }
+  });
+
+  function setStatus(msg, kind) {
+    saveStatus.textContent = msg;
+    saveStatus.className = kind || '';
+  }
+
+  function ordinalRow(text, sub) {
+    const row = document.createElement('div');
+    row.className = 'stat-row';
+    row.innerHTML = '<span class="num">' + text + '</span> <span class="rest">' + sub + '</span>';
+    return row;
+  }
+
+  function renderComparison(data) {
+    compareStats.innerHTML = '';
+    if (typeof data.totalPeople !== 'number') return;
+
+    if (data.totalPeople <= 1) {
+      compareStats.appendChild(ordinalRow('you are the first traveler here', 'invite someone to compare'));
+      return;
+    }
+
+    if (typeof data.beatCountriesPct === 'number') {
+      compareStats.appendChild(ordinalRow(
+        'you visited more countries than ' + fmtPct(data.beatCountriesPct, 0),
+        'of people'
+      ));
+    }
+    if (typeof data.beatAreaPct === 'number') {
+      compareStats.appendChild(ordinalRow(
+        'you covered more land than ' + fmtPct(data.beatAreaPct, 0),
+        'of people'
+      ));
+    }
+    if (typeof data.avgCountries === 'number') {
+      compareStats.appendChild(ordinalRow(
+        'average person here: ' + data.avgCountries.toFixed(1) + ' countries',
+        'you: ' + visited.size
+      ));
+    }
+    if (typeof data.mostVisited === 'string' && COUNTRIES[data.mostVisited]) {
+      compareStats.appendChild(ordinalRow(
+        'most visited country: ' + COUNTRIES[data.mostVisited].name.toLowerCase(),
+        ''
+      ));
+    }
+  }
+
+  function renderGlobalCount(data) {
+    if (typeof data.totalPeople === 'number' && data.totalPeople > 0) {
+      globalCount.textContent = data.totalPeople === 1
+        ? '1 person mapped their world so far'
+        : data.totalPeople.toLocaleString() + ' people mapped their world so far';
+      globalCount.style.opacity = '1';
+    }
+  }
+
+  saveBtn.addEventListener('click', async () => {
+    setStatus('');
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch(API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: getUserId(), countries: [...visited] }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setStatus('saved.', 'ok');
+        renderComparison(data);
+        renderGlobalCount(data);
+      } else {
+        setStatus(data.error || 'something went wrong', 'err');
+      }
+    } catch {
+      setStatus('network error, try again', 'err');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
+  resetBtn.addEventListener('click', () => {
+    visited.clear();
+    persistVisited();
+    mapEl.querySelectorAll('path.visited').forEach(p => p.classList.remove('visited'));
+    updateStats();
+    setStatus('');
+    compareStats.innerHTML = '';
+  });
+
+  // fetch global count on load (fails quietly if the api is not deployed)
+  fetch(API_URL)
+    .then(r => r.json())
+    .then(renderGlobalCount)
+    .catch(() => {});
+
+  updateStats();
+</script>
+</body>
+</html>

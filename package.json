@@ -1,0 +1,12 @@
+{
+  "name": "world",
+  "version": "1.0.0",
+  "private": true,
+  "description": "click every country you have visited, get stats, compare with everyone else",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
