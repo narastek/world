@@ -341,7 +341,8 @@
   }
 
   function fmtPct(x, digits) {
-    return x.toFixed(digits).replace(/\.?0+$/, '') + '%';
+    // trim trailing zeros only after the decimal point ("5.10" -> "5.1", "100" stays "100")
+    return x.toFixed(digits).replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '') + '%';
   }
 
   function updateStats() {
