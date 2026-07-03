@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>is AGI here yet?</title>
+    <meta name="description" content="Get an email every 6 months that the AGI is not here yet.">
+    <meta property="og:title" content="is AGI here yet?">
+    <meta property="og:description" content="Get an email every 6 months that the AGI is not here yet.">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            font-size: 13px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: white;
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .screen {
+            width: 100%;
+            max-width: 420px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .screen[hidden] { display: none !important; }
+
+        #back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 13px;
+            color: #aaa;
+            text-decoration: none;
+        }
+        #back-btn:hover { color: #000; }
+
+        #check-btn {
+            font-family: monospace;
+            font-size: 17px;
+            line-height: 1.35;
+            padding: 28px 36px;
+            max-width: 320px;
+            color: #000;
+            background: #fff;
+            cursor: pointer;
+            border: 3px solid #000;
+            border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px;
+            box-shadow: 5px 5px 0 #000;
+            transform: rotate(-1.5deg);
+            transition: transform 0.12s ease, box-shadow 0.12s ease;
+        }
+
+        #check-btn:hover {
+            transform: rotate(0.5deg) scale(1.02);
+        }
+
+        #check-btn:active {
+            transform: rotate(-1deg) translate(3px, 3px);
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        #loading-screen .loader-label {
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 16px;
+        }
+
+        .loader-dots::after {
+            content: '';
+            animation: dots 1.2s steps(4, end) infinite;
+        }
+
+        @keyframes dots {
+            0%   { content: ''; }
+            25%  { content: '.'; }
+            50%  { content: '..'; }
+            75%  { content: '...'; }
+            100% { content: ''; }
+        }
+
+        .result-headline {
+            font-size: 15px;
+            line-height: 1.55;
+            color: #000;
+            margin-bottom: 28px;
+            max-width: 340px;
+        }
+
+        .result-headline strong {
+            font-weight: bold;
+        }
+
+        .result-prompt {
+            font-size: 13px;
+            color: #555;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+
+        #signup-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        #email-input {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            width: 260px;
+            text-align: center;
+            color: #000;
+            background: white;
+            outline: none;
+        }
+        #email-input:focus { border-color: #000; }
+
+        #signup-form button {
+            font-family: monospace;
+            font-size: 13px;
+            padding: 8px 16px;
+            border: 1px solid #000;
+            border-radius: 3px;
+            background: white;
+            color: #000;
+            cursor: pointer;
+        }
+        #signup-form button:hover { background: #000; color: #fff; }
+        #signup-form button:disabled { opacity: .5; cursor: not-allowed; }
+
+        #signup-status {
+            font-size: 11px;
+            color: #aaa;
+            min-height: 14px;
+            margin-bottom: 8px;
+        }
+        #signup-status.ok { color: #1a7f37; }
+        #signup-status.err { color: #b00020; }
+
+        #waitlist-count {
+            font-size: 11px;
+            color: #aaa;
+            margin-top: 20px;
+            line-height: 1.5;
+            max-width: 300px;
+            opacity: 0;
+            transition: opacity .4s;
+        }
+
+        .hp-field {
+            position: absolute;
+            left: -9999px;
+            width: 1px;
+            height: 1px;
+            opacity: 0;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <a id="back-btn" href="/">← back</a>
+
+    <div id="intro-screen" class="screen">
+        <button type="button" id="check-btn">is AGI here yet?</button>
+    </div>
+
+    <div id="loading-screen" class="screen" hidden>
+        <p class="loader-label">checking<span class="loader-dots"></span></p>
+    </div>
+
+    <div id="result-screen" class="screen" hidden>
+        <p class="result-headline"><strong>AGI is NOT here yet.</strong></p>
+        <p class="result-prompt">Get reminded to check in 6 months:</p>
+
+        <form id="signup-form" novalidate>
+            <label class="hp-field" aria-hidden="true">
+                website
+                <input type="text" id="hp-website" name="website" tabindex="-1" autocomplete="off">
+            </label>
+            <input type="email" id="email-input" placeholder="your@email.com" required autocomplete="email">
+            <button type="submit">remind me in 6 months</button>
+        </form>
+        <div id="signup-status"></div>
+        <div id="waitlist-count"></div>
+    </div>
+
+<script>
+  const introEl = document.getElementById('intro-screen');
+  const loadingEl = document.getElementById('loading-screen');
+  const resultEl = document.getElementById('result-screen');
+  const checkBtn = document.getElementById('check-btn');
+  let checkedAt = null;
+
+  function show(el) {
+    introEl.hidden = el !== introEl;
+    loadingEl.hidden = el !== loadingEl;
+    resultEl.hidden = el !== resultEl;
+  }
+
+  function revealResult() {
+    show(resultEl);
+    loadCount();
+  }
+
+  checkBtn.addEventListener('click', () => {
+    checkedAt = new Date().toISOString();
+    show(loadingEl);
+    setTimeout(revealResult, 3000);
+  });
+
+  function formatCount(n) {
+    const num = n.toLocaleString();
+    if (n === 1) {
+      return '1 person added their email and will check again in 6 months.';
+    }
+    return num + ' people added their email and will check again in 6 months.';
+  }
+
+  const countEl = document.getElementById('waitlist-count');
+  function loadCount() {
+    fetch('/.netlify/functions/agi-count')
+      .then(r => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
+      .then(data => {
+        if (typeof data.count === 'number' && data.count > 0) {
+          countEl.textContent = formatCount(data.count);
+          countEl.style.opacity = '1';
+        }
+      })
+      .catch(() => {});
+  }
+
+  (function() {
+    const form = document.getElementById('signup-form');
+    const emailInput = document.getElementById('email-input');
+    const status = document.getElementById('signup-status');
+    const btn = form.querySelector('button');
+
+    function setStatus(msg, kind) {
+      status.textContent = msg;
+      status.className = kind || '';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      setStatus('');
+      const email = emailInput.value.trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setStatus('invalid email', 'err');
+        return;
+      }
+
+      btn.disabled = true;
+      try {
+        const res = await fetch('/.netlify/functions/agi-subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            website: document.getElementById('hp-website').value,
+            checkedAt,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) {
+          if (data.alreadySubscribed) {
+            setStatus('already on the list. AGI is still not here.', 'ok');
+          } else {
+            setStatus('youre in. well email you in 6 months.', 'ok');
+          }
+          form.reset();
+          loadCount();
+        } else {
+          setStatus(data.error || 'something went wrong', 'err');
+        }
+      } catch {
+        setStatus('network error, try again', 'err');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
+</script>
+</body>
+</html>

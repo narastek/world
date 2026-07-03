@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5">
+  <title>@0x45o mosaic</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+        crossorigin="">
+  <script>
+    // Set the intro-skip class synchronously so a returning visitor never
+    // sees the load overlay and the UI is visible from first paint.
+    (function () {
+      try {
+        if (sessionStorage.getItem('seen_intro') === '1') {
+          document.documentElement.classList.add('intro-skip');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: ui-monospace, Menlo, Monaco, "Cascadia Code", monospace;
+      text-transform: lowercase;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    #map {
+      position: absolute;
+      inset: 0;
+      background: #000;
+    }
+
+    .leaflet-container { background: #000; outline: none; }
+    .leaflet-container a { color: #aaa; }
+    .leaflet-control-attribution { display: none !important; }
+
+    /* ---------- top-left search panel ---------- */
+    .panel {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-width: calc(100vw - 32px);
+    }
+    .panel input,
+    .panel button {
+      font: inherit;
+      text-transform: lowercase;
+      background: rgba(0, 0, 0, 0.85);
+      color: #fff;
+      border: 1px solid #555;
+      padding: 10px 12px;
+      border-radius: 0;
+      outline: none;
+      -webkit-appearance: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .panel input { width: 240px; max-width: calc(100vw - 32px); }
+    .panel input::placeholder { color: #666; }
+    .panel input:focus,
+    .panel button:focus { border-color: #fff; }
+    .panel button { cursor: pointer; }
+    .panel button:hover { background: #fff; color: #000; }
+
+    .search-row { display: flex; gap: 8px; }
+
+    .msg {
+      font-size: 12px;
+      color: #888;
+      max-width: 280px;
+      word-break: break-all;
+    }
+    .msg.err { color: #f55; }
+    .msg.ok  { color: #5f5; }
+    .msg.sug { color: #888; }
+    .msg.sug a.suggestion {
+      color: #fff;
+      text-decoration: none;
+      border-bottom: 1px dotted #555;
+      cursor: pointer;
+    }
+    .msg.sug a.suggestion:hover { border-bottom-color: #fff; }
+
+    /* ---------- found-tile pill ---------- */
+    .pill {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      background: rgba(0, 0, 0, 0.85);
+      border: 1px solid #555;
+      font-size: 12px;
+      color: #ccc;
+      max-width: 380px;
+      flex-wrap: wrap;
+    }
+    /* Author `display: flex` above outranks the UA `[hidden] { display: none }`,
+       so be explicit: a hidden pill is fully invisible (no orphan separators). */
+    .pill[hidden] { display: none; }
+    .pill .sep { color: #444; }
+    .pill .pill-handle { color: #fff; }
+    .pill .pill-coords { color: #888; }
+    .pill a {
+      color: #fff;
+      text-decoration: none;
+      border-bottom: 1px dotted #888;
+    }
+    .pill a:hover { border-bottom-color: #fff; }
+
+    /* ---------- top-right blend slider (compact, no border) ---------- */
+    .slider-panel {
+      position: fixed;
+      top: 22px;
+      right: 16px;
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: #666;
+      text-transform: lowercase;
+    }
+    .slider-panel .slider-label { color: #666; }
+    .slider-panel .slider-value {
+      color: #aaa;
+      min-width: 2em;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    .slider-panel input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: transparent;
+      width: 130px;
+      height: 16px;
+      outline: none;
+      cursor: pointer;
+      margin: 0;
+      padding: 0;
+      border: none;
+    }
+    .slider-panel input[type="range"]::-webkit-slider-runnable-track {
+      height: 1px; background: #555; border: none;
+    }
+    .slider-panel input[type="range"]::-moz-range-track {
+      height: 1px; background: #555; border: none;
+    }
+    .slider-panel input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 10px; height: 10px;
+      background: #fff;
+      border: none;
+      border-radius: 0;
+      margin-top: -4.5px;
+      cursor: pointer;
+    }
+    .slider-panel input[type="range"]::-moz-range-thumb {
+      width: 10px; height: 10px;
+      background: #fff;
+      border: none;
+      border-radius: 0;
+      cursor: pointer;
+    }
+
+    /* ---------- pulse ring ---------- */
+    .pulse-ring {
+      stroke: #fff;
+      fill: none;
+      opacity: 1;
+      transition: opacity 0.6s ease;
+      animation: pulse 1.2s ease-out infinite;
+    }
+    .pulse-ring.fadeout { opacity: 0; }
+    @keyframes pulse {
+      0%   { stroke-opacity: 1.0; stroke-width: 4; }
+      100% { stroke-opacity: 0.0; stroke-width: 14; }
+    }
+
+    /* ---------- load-screen counter overlay ---------- */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: #000;
+      z-index: 5000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      opacity: 1;
+      transition: opacity 0.4s ease;
+    }
+    .intro-overlay.fading-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+    /* Returning visitor: the overlay is invisible from first paint; we never
+       set display:none here so the runtime fade-out path stays consistent. */
+    html.intro-skip .intro-overlay {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .intro-counter {
+      font-size: 48px;
+      color: #fff;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+      line-height: 1;
+    }
+    .intro-subtitle {
+      font-size: 12px;
+      color: #666;
+      margin-top: 8px;
+    }
+
+    /* Hide UI until intro completes. When `intro-skip` is added (either by
+       the head script or by the runtime after the animation), this rule
+       stops matching and the transition fades the UI in. */
+    html:not(.intro-skip) .panel,
+    html:not(.intro-skip) .slider-panel {
+      opacity: 0;
+    }
+    .panel,
+    .slider-panel {
+      transition: opacity 0.6s ease;
+    }
+
+    /* ---------- mobile ---------- */
+    @media (max-width: 480px) {
+      .slider-panel {
+        top: 12px;
+        left: 16px;
+        right: auto;
+        font-size: 10px;
+        gap: 6px;
+      }
+      .slider-panel input[type="range"] { width: 90px; }
+      .panel { top: 44px; }
+      .panel input[type="text"] { width: calc(100vw - 32px); }
+      .panel .msg { max-width: calc(100vw - 32px); }
+      .panel .pill {
+        max-width: calc(100vw - 32px);
+        order: -1; /* keep pill above search bar so the keyboard can't hide it */
+      }
+      .search-row { flex-wrap: wrap; }
+      .search-row input { flex-basis: 100%; }
+      .intro-counter { font-size: 36px; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="panel">
+    <div class="row search-row">
+      <input id="q" type="text" placeholder="search username..."
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <button id="go" type="button">find</button>
+      <button id="back" type="button">back</button>
+    </div>
+    <div id="pill" class="pill" hidden>
+      <span class="pill-handle" id="pill-handle"></span>
+      <span class="sep">·</span>
+      <span class="pill-coords" id="pill-coords"></span>
+      <span class="sep" id="pill-link-sep">·</span>
+      <a id="pill-link" href="#" target="_blank" rel="noopener">view on x</a>
+    </div>
+    <div id="msg" class="msg" aria-live="polite" hidden></div>
+  </div>
+
+  <div class="slider-panel">
+    <span class="slider-label">blend</span>
+    <input id="blend" type="range" min="0" max="10" step="1" value="3" aria-label="blend">
+    <span class="slider-value" id="blend-val">0.3</span>
+  </div>
+
+  <div id="intro-overlay" class="intro-overlay" aria-hidden="true">
+    <div class="intro-counter" id="intro-counter">0</div>
+    <div class="intro-subtitle">followers</div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+          crossorigin=""></script>
+  <script>
+  (async () => {
+    const $q = document.getElementById('q');
+    const $msg = document.getElementById('msg');
+    const $go = document.getElementById('go');
+    const $back = document.getElementById('back');
+    const $blend = document.getElementById('blend');
+    const $blendVal = document.getElementById('blend-val');
+    const $pill = document.getElementById('pill');
+    const $pillHandle = document.getElementById('pill-handle');
+    const $pillCoords = document.getElementById('pill-coords');
+    const $pillLink = document.getElementById('pill-link');
+    const $pillLinkSep = document.getElementById('pill-link-sep');
+    const $overlay = document.getElementById('intro-overlay');
+    const $counter = document.getElementById('intro-counter');
+
+    const skipIntro = document.documentElement.classList.contains('intro-skip');
+
+    const setMsg = (text, kind) => {
+      if (!text) {
+        $msg.textContent = '';
+        $msg.className = 'msg';
+        $msg.hidden = true;
+        return;
+      }
+      $msg.textContent = text;
+      $msg.className = 'msg' + (kind ? ' ' + kind : '');
+      $msg.hidden = false;
+    };
+    const clearMsg = () => setMsg('', null);
+
+    const mosaicUrl = (stepIdx) => 'mosaic_' + String(stepIdx).padStart(2, '0') + '.jpg';
+    const blendValueFor = (stepIdx) => (stepIdx / 10).toFixed(1);
+
+    const showPill = (t) => {
+      if (t.username) {
+        $pillHandle.textContent = '@' + t.username;
+        $pillLink.href = 'https://x.com/' + encodeURIComponent(t.username);
+        $pillLink.hidden = false;
+        $pillLinkSep.hidden = false;
+      } else {
+        $pillHandle.textContent = 'anonymous tile';
+        $pillLink.hidden = true;
+        $pillLinkSep.hidden = true;
+      }
+      $pillCoords.textContent = '(' + t.x + ', ' + t.y + ')';
+      $pill.hidden = false;
+    };
+    const hidePill = () => { $pill.hidden = true; };
+
+    // ---------- load-screen counter ----------
+    const runIntroAnimation = (target, durationMs) => new Promise((resolve) => {
+      const start = performance.now();
+      const tick = (now) => {
+        const t = Math.min(1, (now - start) / durationMs);
+        const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        $counter.textContent = Math.round(eased * target).toLocaleString();
+        if (t < 1) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+
+    const finishIntro = () => {
+      try { sessionStorage.setItem('seen_intro', '1'); } catch (_) {}
+      $overlay.classList.add('fading-out');
+      // Adding intro-skip on <html> stops the :not() opacity rule from
+      // matching → the panel + slider-panel transition opacity 0 → 1.
+      document.documentElement.classList.add('intro-skip');
+      setTimeout(() => { try { $overlay.remove(); } catch (_) {} }, 500);
+    };
+
+    // Kick the animation off in parallel with the tiles.json fetch so the
+    // animation feels prompt even on slow networks. Target is 10000 to match
+    // the "10,000 followers" framing; the actual count drives the intro line.
+    const animPromise = skipIntro ? Promise.resolve() : runIntroAnimation(10000, 2000);
+
+    let meta;
+    try {
+      meta = await fetch('tiles.json', { cache: 'no-cache' }).then(r => {
+        if (!r.ok) throw new Error('tiles.json ' + r.status);
+        return r.json();
+      });
+    } catch (e) {
+      await animPromise;
+      if (!skipIntro) finishIntro();
+      setMsg('failed to load tiles.json', 'err');
+      return;
+    }
+
+    const TILE = meta.tile_size;
+    const IMG_W = meta.image_w;
+    const IMG_H = meta.image_h;
+    const GRID_W = meta.grid_w;
+    const GRID_H = meta.grid_h;
+    const tiles = meta.tiles || [];
+
+    const byUser = new Map();
+    const tilesByCoord = new Map();
+    for (const t of tiles) {
+      if (t.username) byUser.set(String(t.username).toLowerCase(), t);
+      tilesByCoord.set(t.x + ',' + t.y, t);
+    }
+
+    // CRS.Simple with image y inverted so the picture displays right-side up.
+    // World coords: latLng(lat = IMG_H - py, lng = px).
+    const map = L.map('map', {
+      crs: L.CRS.Simple,
+      minZoom: -4,
+      maxZoom: 3,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelPxPerZoomLevel: 120,
+      attributionControl: false,
+      zoomControl: false,
+      preferCanvas: false,
+    });
+
+    const bounds = [[0, 0], [IMG_H, IMG_W]];
+    let blendStep = parseInt($blend.value, 10);
+    $blendVal.textContent = blendValueFor(blendStep);
+    const mosaicLayer = L.imageOverlay(mosaicUrl(blendStep), bounds).addTo(map);
+
+    // ---- preload adjacent slider images ----
+    const preloadCache = new Set();
+    const preloadStep = (idx) => {
+      if (idx < 0 || idx > 10) return;
+      const url = mosaicUrl(idx);
+      if (preloadCache.has(url)) return;
+      preloadCache.add(url);
+      const img = new Image();
+      img.src = url;
+    };
+    preloadStep(blendStep - 1);
+    preloadStep(blendStep + 1);
+
+    $blend.addEventListener('input', (e) => {
+      blendStep = parseInt(e.target.value, 10);
+      $blendVal.textContent = blendValueFor(blendStep);
+      mosaicLayer.setUrl(mosaicUrl(blendStep));
+      preloadStep(blendStep - 1);
+      preloadStep(blendStep + 1);
+    });
+
+    const padY = IMG_H * 0.15;
+    const padX = IMG_W * 0.15;
+    map.setMaxBounds([[-padY, -padX], [IMG_H + padY, IMG_W + padX]]);
+    map.fitBounds(bounds);
+
+    const tileLatLngBounds = (t) => {
+      const px = t.x * TILE;
+      const py = t.y * TILE;
+      const south = IMG_H - (py + TILE);
+      const north = IMG_H - py;
+      const west = px;
+      const east = px + TILE;
+      return [[south, west], [north, east]];
+    };
+
+    let activePulse = null;
+    const pulseTile = (t) => {
+      if (activePulse) {
+        try { map.removeLayer(activePulse); } catch (_) {}
+        activePulse = null;
+      }
+      const rect = L.rectangle(tileLatLngBounds(t), {
+        color: '#fff',
+        weight: 3,
+        fill: false,
+        className: 'pulse-ring',
+        interactive: false,
+      }).addTo(map);
+      activePulse = rect;
+
+      setTimeout(() => {
+        const el = rect.getElement && rect.getElement();
+        if (el) el.classList.add('fadeout');
+        setTimeout(() => {
+          if (rect === activePulse) {
+            try { map.removeLayer(rect); } catch (_) {}
+            activePulse = null;
+          } else {
+            try { map.removeLayer(rect); } catch (_) {}
+          }
+        }, 700);
+      }, 3000);
+    };
+
+    // Zoom math:
+    //   tile px on screen at zoom z = TILE * 2^z  (CRS.Simple, default scale)
+    //   minTilePx = 80   -> zoom ≥ log2(80/TILE)
+    //   comfortPx = 120  -> zoom ≈ log2(120/TILE)
+    const MIN_TILE_PX = 80;
+    const COMFORT_TILE_PX = 120;
+    const minZoomForVisibleTile = Math.log2(MIN_TILE_PX / TILE);
+    const comfortableZoom = Math.log2(COMFORT_TILE_PX / TILE);
+
+    const flyToTile = (t, opts) => {
+      opts = opts || {};
+      const cx = t.x * TILE + TILE / 2;
+      const cy = t.y * TILE + TILE / 2;
+      const center = [IMG_H - cy, cx];
+      let targetZoom;
+      if (opts.preserveZoom) {
+        targetZoom = Math.max(map.getZoom(), minZoomForVisibleTile);
+      } else {
+        targetZoom = comfortableZoom;
+      }
+      targetZoom = Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), targetZoom));
+      map.flyTo(center, targetZoom, {
+        duration: opts.duration != null ? opts.duration : 1.2,
+        easeLinearity: 0.25,
+      });
+    };
+
+    const normalize = (s) => (s || '').trim().replace(/^@+/, '').toLowerCase();
+
+    // selectTile is the shared success path. It deliberately does NOT touch
+    // history.replaceState — the URL only changes via the initial deep-link
+    // logic on incoming shared links.
+    const selectTile = (t, opts) => {
+      if (!t) return;
+      clearMsg();
+      showPill(t);
+      pulseTile(t);
+      if (t.username) {
+        $q.value = t.username;
+        flyToTile(t, opts);
+      }
+    };
+
+    const findPrefixMatches = (q, limit) => {
+      const result = [];
+      for (const [handle, t] of byUser) {
+        if (handle.startsWith(q)) {
+          result.push(t);
+          if (result.length >= limit) break;
+        }
+      }
+      return result;
+    };
+
+    const showSuggestions = (matches) => {
+      $msg.textContent = '';
+      $msg.className = 'msg sug';
+      $msg.hidden = false;
+      $msg.appendChild(document.createTextNode('did you mean: '));
+      matches.forEach((t, i) => {
+        const a = document.createElement('a');
+        a.href = '#';
+        a.className = 'suggestion';
+        a.textContent = t.username;
+        a.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          selectTile(t);
+        });
+        $msg.appendChild(a);
+        if (i < matches.length - 1) {
+          $msg.appendChild(document.createTextNode(', '));
+        }
+      });
+    };
+
+    const search = (raw) => {
+      const u = normalize(raw);
+      if (!u) {
+        clearMsg();
+        hidePill();
+        return;
+      }
+      const t = byUser.get(u);
+      if (t) {
+        selectTile(t);
+        return;
+      }
+      const matches = findPrefixMatches(u, 5);
+      hidePill();
+      if (matches.length > 0) {
+        showSuggestions(matches);
+      } else {
+        setMsg('tile not found', 'err');
+      }
+    };
+
+    $go.addEventListener('click', () => search($q.value));
+    $q.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        search($q.value);
+      }
+    });
+
+    $back.addEventListener('click', () => {
+      $q.value = '';
+      hidePill();
+      clearMsg();
+      if (activePulse) {
+        try { map.removeLayer(activePulse); } catch (_) {}
+        activePulse = null;
+      }
+      map.fitBounds(bounds);
+    });
+
+    // ---- click any tile on the map to identify it ----
+    map.on('click', (e) => {
+      const lng = e.latlng.lng;
+      const lat = e.latlng.lat;
+      const px = lng;
+      const py = IMG_H - lat;
+      if (px < 0 || px >= IMG_W || py < 0 || py >= IMG_H) return;
+      const x = Math.floor(px / TILE);
+      const y = Math.floor(py / TILE);
+      if (x < 0 || x >= GRID_W || y < 0 || y >= GRID_H) return;
+      const t = tilesByCoord.get(x + ',' + y);
+      if (!t) return;
+      selectTile(t, { preserveZoom: true, duration: 0.6 });
+    });
+
+    // ---- initial deep-link (incoming shared links only) ----
+    const params = new URLSearchParams(location.search);
+    const initial = params.get('u');
+    if (initial) {
+      $q.value = initial;
+      map.whenReady(() => setTimeout(() => search(initial), 250));
+    }
+
+    // ---- finalize intro: wait for animation, then fade overlay + UI ----
+    await animPromise;
+    if (!skipIntro) finishIntro();
+  })();
+  </script>
+</body>
+</html>

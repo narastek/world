@@ -1,0 +1,1918 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>textamine</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=JetBrains+Mono:wght@400;500;700&family=EB+Garamond:ital,wght@0,400;0,700;1,400&family=Outfit:wght@400;500;700&family=Caveat:wght@400;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<style>
+  :root {
+    --ink:    #0a0a0a;
+    --paper:  #ffffff;
+    --ghost:  #dcdcdc;
+    --mute:   #8a8a8a;
+    /* concrete value, not var(--ink) — Safari/WebKit freezes chained var()
+       at :root and ignores body.dark, leaving the counter invisible in dark
+       mode until the user touches the color picker. same quirk that --cool-end
+       sidesteps for the heat animation. */
+    --num:    #0a0a0a;
+    --shake:  2px;
+    --page:   816px;
+    --body-font: 'JetBrains Mono', ui-monospace, monospace;
+    --body-weight: 400;
+  }
+  body.dark {
+    --ink:    #ededed;
+    --paper:  #0e0e0e;
+    --ghost:  #2a2a2a;
+    --mute:   #707070;
+    --num:    #ededed;
+  }
+  body.dark .editor::selection { background: #4a3e10; }
+  body.dark .toolbar button:hover { background: var(--ink); color: var(--paper); }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    overflow: hidden;
+  }
+
+  /* ─── HEADER ─── */
+  header {
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 220px;
+    background: var(--paper);
+    z-index: 50;
+    padding: 26px 44px 0 44px;
+  }
+  .count-wrap {
+    position: absolute;
+    top: 26px;
+  }
+  header.pos-left   .count-wrap { left: 44px; }
+  header.pos-center .count-wrap { left: 50%; transform: translateX(-50%); }
+  header.pos-right  .count-wrap { right: 44px; }
+  header.pos-left   .count { transform-origin: top left;   text-align: left; }
+  header.pos-center .count { transform-origin: top center; text-align: center; }
+  header.pos-right  .count { transform-origin: top right;  text-align: right; }
+
+  .count {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: clamp(110px, 14vw, 180px);
+    line-height: 0.85;
+    letter-spacing: -0.06em;
+    color: var(--num);
+    pointer-events: none;
+    user-select: none;
+    will-change: transform;
+    transition: color .15s linear;
+  }
+  .count .label {
+    display: block;
+    margin-top: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.4em;
+    color: var(--mute);
+    text-transform: uppercase;
+  }
+
+  .toolbar {
+    position: absolute;
+    top: 36px;
+    display: flex; gap: 8px; align-items: center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  header.pos-left   .toolbar,
+  header.pos-center .toolbar { right: 28px; }
+  header.pos-right  .toolbar { left: 28px; }
+  .filename {
+    font-size: 11px; color: var(--mute);
+    letter-spacing: 0.2em; text-transform: uppercase;
+    margin-right: 8px;
+  }
+  .toolbar button {
+    background: transparent;
+    border: 1px solid var(--ghost);
+    padding: 8px 14px;
+    font-size: 11px;
+    font-family: inherit;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mute);
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all .15s;
+  }
+  .toolbar button:hover {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .toolbar .gear { width: 34px; height: 34px; padding: 0; font-size: 16px; }
+
+  /* ─── MAIN / PAGE ─── */
+  main {
+    position: absolute;
+    inset: 220px 0 56px 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    justify-content: center;
+  }
+  .page {
+    width: var(--page);
+    max-width: 100%;
+    min-height: 100%;
+    padding: 40px 72px 120px 72px;
+    cursor: text;
+  }
+  .editor {
+    min-height: calc(100vh - 220px - 56px - 160px);
+    outline: none;
+    background: transparent;
+    font-family: var(--body-font);
+    font-weight: var(--body-weight);
+    font-size: 17px;
+    line-height: 1.75;
+    color: var(--ink);
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    caret-color: var(--ink);
+  }
+  .editor:empty::before {
+    content: attr(data-placeholder);
+    color: var(--ghost);
+    pointer-events: none;
+  }
+  .editor::selection { background: #ffe680; }
+  .editor img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 16px auto;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: outline-color .15s;
+    outline: 0 solid transparent;
+  }
+  .editor img:hover { outline: 2px solid var(--ghost); }
+  body.dragging-image .editor { outline: 2px dashed var(--mute); outline-offset: -8px; }
+
+  /* hide the ugly scrollbar but keep the scrollability */
+  main {
+    scrollbar-width: none;          /* Firefox */
+    -ms-overflow-style: none;       /* legacy edge / IE */
+  }
+  main::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+  /* ─── HOT CHARACTERS (cool from red to ink) ─── */
+  .hot {
+    color: var(--hot-color, #ff3a2a);
+    animation: cool var(--cool-duration, 2500ms) linear forwards;
+  }
+  /* --cool-end is set as an inline custom property on each .hot span at insert
+     time (light: #0a0a0a, dark: #ededed). This sidesteps the browser quirk
+     where var() inside @keyframes resolves once against :root and freezes,
+     ignoring body.dark. With a concrete inline value, the animation always
+     ends at the correct theme color. */
+  @keyframes cool {
+    0%   { color: var(--hot-color, #ff3a2a); }
+    100% { color: var(--cool-end, #0a0a0a); }
+  }
+
+  /* ─── FOOTER ─── */
+  footer {
+    position: fixed;
+    inset: auto 0 0 0;
+    height: 56px;
+    background: var(--paper);
+    z-index: 50;
+    padding: 0 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--mute);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+  footer span { margin-right: 24px; }
+  footer b { color: var(--ink); font-weight: 500; }
+  footer .right { display: flex; }
+  footer .right span:last-child { margin-right: 0; }
+
+  /* ─── FX CANVAS ─── */
+  #fx {
+    position: fixed; inset: 0;
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes shake {
+    0%   { transform: translate(0, 0) rotate(0); }
+    25%  { transform: translate(calc(var(--shake) * -1), calc(var(--shake) * 0.4))  rotate(-0.3deg); }
+    55%  { transform: translate(var(--shake), calc(var(--shake) * -0.4)) rotate(0.3deg); }
+    100% { transform: translate(0, 0) rotate(0); }
+  }
+  .count.shaking { animation: shake 90ms cubic-bezier(.36,.07,.19,.97); }
+
+  @keyframes pulse {
+    0%   { transform: scale(1); }
+    25%  { transform: scale(var(--pulse-scale, 1.18)); }
+    100% { transform: scale(1); }
+  }
+  .count.pulsing { animation: pulse 600ms cubic-bezier(.2,.9,.2,1); }
+
+  @keyframes glitch {
+    0%   { text-shadow: none; }
+    20%  { text-shadow: calc(var(--glitch-x) * 1px) 0 #ff0080, calc(var(--glitch-x) * -1px) 0 #00ffff; transform: translate(2px, 0); }
+    40%  { text-shadow: calc(var(--glitch-x) * -1px) 0 #ff0080, calc(var(--glitch-x) * 1px) 0 #00ffff; transform: translate(-2px, 0); }
+    60%  { text-shadow: calc(var(--glitch-x) * 1px) 0 #ff0080, calc(var(--glitch-x) * -1px) 0 #00ffff; transform: translate(1px, 0); }
+    80%  { text-shadow: calc(var(--glitch-x) * -1px) 0 #ff0080, calc(var(--glitch-x) * 1px) 0 #00ffff; transform: translate(-1px, 0); }
+    100% { text-shadow: none; transform: translate(0, 0); }
+  }
+  .count.glitching { animation: glitch 500ms steps(8); }
+
+  /* text bits flying from counter */
+  .bit {
+    position: fixed;
+    pointer-events: none;
+    z-index: 80;
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: var(--num);
+    animation: fly 1.4s cubic-bezier(.2,.7,.3,1) forwards;
+  }
+  @keyframes fly {
+    0%   { transform: translate(0,0) rotate(0); opacity: 0; }
+    12%  { opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) rotate(var(--r)); opacity: 0; }
+  }
+
+  /* expanding shockwave ring */
+  .ring {
+    position: fixed;
+    border-radius: 50%;
+    border: 3px solid var(--num);
+    pointer-events: none;
+    z-index: 70;
+    animation: ring 900ms ease-out forwards;
+    transform: translate(-50%, -50%);
+    will-change: width, height, opacity;
+  }
+  @keyframes ring {
+    0%   { width: 0; height: 0; opacity: 1; border-width: 5px; }
+    100% { width: 1800px; height: 1800px; opacity: 0; border-width: 1px; }
+  }
+
+  /* screen flash */
+  .flash {
+    position: fixed; inset: 0;
+    background: var(--num);
+    pointer-events: none;
+    z-index: 95;
+    mix-blend-mode: difference;
+    animation: flashAnim 240ms ease-out forwards;
+  }
+  @keyframes flashAnim {
+    0%   { opacity: 0; }
+    25%  { opacity: 0.9; }
+    100% { opacity: 0; }
+  }
+
+  /* big stamp in the middle */
+  .stamp {
+    position: fixed;
+    top: 50%; left: 50%;
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 140px;
+    letter-spacing: -0.04em;
+    color: var(--num);
+    pointer-events: none;
+    z-index: 88;
+    white-space: nowrap;
+    animation: stampPop 1.2s cubic-bezier(.2,.9,.2,1) forwards;
+  }
+  @keyframes stampPop {
+    0%   { transform: translate(-50%, -50%) scale(3) rotate(-15deg); opacity: 0; }
+    18%  { transform: translate(-50%, -50%) scale(1) rotate(-8deg); opacity: 1; }
+    85%  { opacity: 1; }
+    100% { transform: translate(-50%, -50%) scale(0.95) rotate(-8deg); opacity: 0; }
+  }
+
+  /* page shake (applies to body) */
+  @keyframes pageShake {
+    0%, 100% { transform: translate(0, 0); }
+    10% { transform: translate(calc(var(--pshake) * -1px), calc(var(--pshake) * 0.5px)); }
+    20% { transform: translate(calc(var(--pshake) * 1px), calc(var(--pshake) * -0.7px)); }
+    30% { transform: translate(calc(var(--pshake) * -0.8px), calc(var(--pshake) * -0.5px)); }
+    40% { transform: translate(calc(var(--pshake) * 0.6px), calc(var(--pshake) * 0.8px)); }
+    50% { transform: translate(calc(var(--pshake) * -0.5px), calc(var(--pshake) * 0.3px)); }
+    60% { transform: translate(calc(var(--pshake) * 0.8px), calc(var(--pshake) * -0.3px)); }
+    70% { transform: translate(calc(var(--pshake) * -0.3px), calc(var(--pshake) * 0.6px)); }
+    80% { transform: translate(calc(var(--pshake) * 0.5px), calc(var(--pshake) * -0.5px)); }
+    90% { transform: translate(calc(var(--pshake) * -0.5px), calc(var(--pshake) * 0.2px)); }
+  }
+  body.page-shaking { animation: pageShake 550ms ease; }
+
+  /* ─── SETTINGS PANEL ─── */
+  .settings {
+    position: fixed;
+    top: 0; right: 0;
+    width: 360px;
+    height: 100%;
+    background: var(--paper);
+    border-left: 1px solid var(--ghost);
+    z-index: 200;
+    padding: 28px;
+    transform: translateX(100%);
+    transition: transform .25s cubic-bezier(.2,.9,.2,1);
+    overflow-y: auto;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .settings.open { transform: translateX(0); }
+  .settings h2 {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 28px;
+    letter-spacing: -0.04em;
+    margin-bottom: 18px;
+    color: var(--ink);
+  }
+  .settings .close {
+    position: absolute;
+    top: 24px; right: 24px;
+    background: none; border: none;
+    font-size: 22px;
+    color: var(--mute);
+    cursor: pointer;
+    line-height: 1;
+  }
+  .section {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--ghost);
+  }
+  .section h3 {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--mute);
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+  .field { margin-bottom: 14px; }
+  .field label {
+    display: block;
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--mute);
+    margin-bottom: 6px;
+  }
+  .field select,
+  .field input[type="number"],
+  .field input[type="color"],
+  .field input[type="range"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--ghost);
+    background: var(--paper);
+    font-family: inherit;
+    font-size: 13px;
+    color: var(--ink);
+    border-radius: 2px;
+    outline: none;
+  }
+  .field input[type="color"] { padding: 4px; height: 36px; cursor: pointer; }
+  .field input[type="range"] { padding: 0; border: none; }
+  .field .toggle {
+    display: flex; align-items: center; gap: 10px;
+    cursor: pointer; user-select: none;
+    font-size: 13px; color: var(--ink);
+    letter-spacing: 0; text-transform: none;
+  }
+  .field .toggle input { width: auto; }
+
+  .fx-row {
+    display: grid;
+    grid-template-columns: 18px 1fr 70px;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 6px 0;
+  }
+  .fx-row label {
+    margin: 0; font-size: 12px;
+    letter-spacing: 0.05em;
+    text-transform: none;
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .fx-row input[type="range"] {
+    padding: 0; border: none;
+    accent-color: var(--ink);
+  }
+  .fx-row .val {
+    text-align: right;
+    font-size: 11px; color: var(--mute);
+  }
+  .fx-row.off label { color: var(--mute); }
+
+  .hint {
+    font-size: 10px; color: var(--mute);
+    letter-spacing: 0.1em; margin-top: 4px;
+  }
+  .footer-note {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid var(--ghost);
+    font-size: 10px;
+    color: var(--mute);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    line-height: 1.6;
+  }
+  .reset {
+    margin-top: 14px;
+    width: 100%;
+    background: transparent;
+    border: 1px solid var(--ghost);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--mute);
+    cursor: pointer;
+    border-radius: 2px;
+  }
+  .reset:hover { color: var(--ink); border-color: var(--ink); }
+
+  /* hide conditional color fields */
+  .hidden { display: none !important; }
+
+  /* ─── WELCOME POPUP ─── */
+  .welcome {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.45);
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    cursor: pointer;
+  }
+  body.dark .welcome { background: rgba(0, 0, 0, 0.6); }
+  .welcome.hidden { display: none !important; }
+  .welcome-card {
+    background: var(--paper);
+    border: 1px solid var(--ghost);
+    border-radius: 6px;
+    padding: 36px 36px 28px;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+    cursor: default;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18);
+  }
+  .welcome-title {
+    font-family: 'Archivo Black', sans-serif;
+    font-size: 44px;
+    line-height: 0.9;
+    letter-spacing: -0.04em;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+  .welcome-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    color: var(--mute);
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .welcome-card ul {
+    list-style: none;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--ink);
+    line-height: 2;
+    text-align: center;
+    margin-bottom: 26px;
+  }
+  .welcome .cta {
+    background: var(--ink);
+    color: var(--paper);
+    border: none;
+    padding: 12px 30px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  .welcome-made {
+    margin-top: 22px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: var(--mute);
+    text-transform: uppercase;
+  }
+  .welcome-made a { color: var(--mute); text-decoration: none; }
+  .welcome-made a:hover { color: var(--ink); }
+
+  /* ─── MOBILE TAKEOVER ─── */
+  .mobile-block { display: none; }
+  @media (max-width: 1024px) {
+    header, main, footer, .settings, .welcome, #fx { display: none !important; }
+    body { background: var(--paper); }
+    .mobile-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 40px 28px;
+      text-align: center;
+    }
+    .mobile-block h1 {
+      font-family: 'Archivo Black', sans-serif;
+      font-size: clamp(56px, 16vw, 96px);
+      line-height: 0.92;
+      letter-spacing: -0.05em;
+      color: var(--ink);
+      margin-bottom: 28px;
+    }
+    .mobile-block p {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 14px;
+      color: var(--mute);
+      line-height: 1.7;
+      max-width: 320px;
+      margin-bottom: 32px;
+      letter-spacing: 0.02em;
+    }
+    .mobile-block .url {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      color: var(--ink);
+      padding: 14px 22px;
+      border: 1px solid var(--ghost);
+      border-radius: 4px;
+      margin-bottom: 18px;
+      letter-spacing: 0.05em;
+    }
+    .mobile-block button {
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      padding: 13px 30px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .mobile-block .made-by {
+      position: absolute;
+      bottom: 28px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.25em;
+      color: var(--mute);
+      text-transform: uppercase;
+    }
+    .mobile-block .made-by a { color: var(--mute); text-decoration: none; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- mobile/tablet takeover -->
+  <div class="mobile-block">
+    <h1>NOT FOR<br>PHONES.</h1>
+    <p>textamine wants a real keyboard. open it on a mac or pc.</p>
+    <div class="url">0x45o.com/textamine</div>
+    <button onclick="copyLink(this)">copy link</button>
+    <div class="made-by">made by <a href="https://x.com/0x45o" target="_blank">@0x45o</a></div>
+  </div>
+
+  <!-- first-impression welcome (every visit) -->
+  <div class="welcome" id="welcome" onclick="dismissWelcome(event)">
+    <div class="welcome-card" onclick="event.stopPropagation()">
+      <div class="welcome-title">textamine.</div>
+      <div class="welcome-tag">text + dopamine</div>
+      <ul>
+        <li>type fast, the caret catches fire</li>
+        <li>letters glow red and cool to black</li>
+        <li>celebration every 100 characters</li>
+        <li>autosaves as you write</li>
+      </ul>
+      <button class="cta" onclick="dismissWelcome(event)">start writing</button>
+      <div class="welcome-made">made by <a href="https://x.com/0x45o" target="_blank" onclick="event.stopPropagation()">@0x45o</a></div>
+    </div>
+  </div>
+
+  <canvas id="fx"></canvas>
+
+  <header id="header" class="pos-center">
+    <div class="count-wrap"><div class="count" id="count">0<span class="label" id="countLabel">Words</span></div></div>
+    <div class="toolbar">
+      <span class="filename" id="filename">untitled.txt</span>
+      <button onclick="document.getElementById('file').click()">Open</button>
+      <button onclick="saveFile()">Save</button>
+      <button class="gear" onclick="toggleSettings()" title="Settings">⚙</button>
+      <input type="file" id="file" style="display:none" accept=".txt,.md,.docx,.js,.py,.html,.css,.json" onchange="loadFile(event)">
+    </div>
+  </header>
+
+  <main id="main">
+    <div class="page" id="page" onclick="focusEditor(event)">
+      <div class="editor" id="editor" contenteditable="true" spellcheck="false" data-placeholder="start writing…"></div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="left">
+      <span><b id="words">0</b> words</span>
+      <span><b id="chars">0</b> chars</span>
+      <span><b id="lines">1</b> lines</span>
+    </div>
+    <div class="right">
+      <span>next <b id="next">50</b></span>
+      <span><b id="readTime">0</b> min read</span>
+    </div>
+  </footer>
+
+  <aside class="settings" id="settings">
+    <button class="close" onclick="toggleSettings()">×</button>
+    <h2>textamine.</h2>
+
+    <!-- DISPLAY -->
+    <div class="section" style="margin-top:0;padding-top:0;border:none;">
+      <h3>Display</h3>
+      <div class="field">
+        <label>Primary stat (big number)</label>
+        <select id="set-stat">
+          <option value="words">Words</option>
+          <option value="chars">Characters</option>
+          <option value="charsNoSpace">Characters (no spaces)</option>
+          <option value="lines">Lines</option>
+          <option value="sentences">Sentences</option>
+          <option value="paragraphs">Paragraphs</option>
+          <option value="readTime">Reading time (min)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Page width</label>
+        <select id="set-page">
+          <option value="816">US Letter (8.5")</option>
+          <option value="794">A4</option>
+          <option value="640">Narrow</option>
+          <option value="1100">Wide</option>
+          <option value="100%">Full width</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Body font</label>
+        <select id="set-font">
+          <option value="'JetBrains Mono', monospace">Mono — JetBrains</option>
+          <option value="'Space Mono', monospace">Mono — Space</option>
+          <option value="'EB Garamond', serif">Serif — Garamond</option>
+          <option value="'Outfit', sans-serif">Sans — Outfit</option>
+          <option value="'Caveat', cursive">Hand — Caveat</option>
+          <option value="ui-monospace, monospace">System Mono</option>
+          <option value="-apple-system, system-ui, sans-serif">System Sans</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Counter position</label>
+        <select id="set-countPos">
+          <option value="left">Top left</option>
+          <option value="center">Top center</option>
+          <option value="right">Top right</option>
+        </select>
+      </div>
+      <div class="field">
+        <label class="toggle">
+          <input type="checkbox" id="set-bold"> Bold body text
+        </label>
+      </div>
+      <div class="field">
+        <label class="toggle">
+          <input type="checkbox" id="set-dark"> Dark mode 🌙
+        </label>
+      </div>
+    </div>
+
+    <!-- COUNTER COLOR -->
+    <div class="section">
+      <h3>Counter color</h3>
+      <div class="field">
+        <label>Mode</label>
+        <select id="set-colorMode">
+          <option value="solid">Solid</option>
+          <option value="perChar">Random — every character</option>
+          <option value="perN">Random — every N characters</option>
+          <option value="perWord">Random — every word</option>
+          <option value="rainbow">Rainbow cycle</option>
+        </select>
+      </div>
+      <div class="field" id="field-color">
+        <label>Color</label>
+        <input type="color" id="set-color" value="#0a0a0a">
+      </div>
+      <div class="field hidden" id="field-interval">
+        <label>Interval (characters)</label>
+        <input type="number" id="set-colorInterval" min="1" max="1000" value="10">
+      </div>
+      <div class="field hidden" id="field-rainbowSpeed">
+        <label>Rainbow speed <span id="rainbowVal" style="float:right;color:var(--ink);">3</span></label>
+        <input type="range" id="set-rainbowSpeed" min="1" max="20" step="1" value="3">
+      </div>
+    </div>
+
+    <!-- TYPING -->
+    <div class="section">
+      <h3>Typing feedback</h3>
+      <div class="field">
+        <label>Shake intensity <span id="shakeVal" style="float:right;color:var(--ink);">2</span></label>
+        <input type="range" id="set-shake" min="0" max="8" step="1" value="2">
+        <div class="hint">0 = off · 8 = caffeine</div>
+      </div>
+      <div class="field">
+        <label class="toggle">
+          <input type="checkbox" id="set-fire-on"> Fire caret 🔥
+        </label>
+        <div class="hint">caret burns hotter the faster you type</div>
+      </div>
+      <div class="field" id="field-fire-intensity">
+        <label>Fire intensity <span id="fireVal" style="float:right;color:var(--ink);">5</span></label>
+        <input type="range" id="set-fire-intensity" min="1" max="10" step="1" value="5">
+      </div>
+      <div class="field">
+        <label class="toggle">
+          <input type="checkbox" id="set-heat-on"> Heat-treat letters
+        </label>
+        <div class="hint">just-typed characters glow, then cool to black</div>
+      </div>
+      <div class="field" id="field-heat-color">
+        <label>Hot color</label>
+        <input type="color" id="set-heat-color" value="#ff3a2a">
+      </div>
+      <div class="field" id="field-heat-duration">
+        <label>Cool down (seconds)</label>
+        <input type="number" id="set-heat-duration" min="0.3" max="300" step="0.1" value="2.5">
+        <div class="hint">up to 300s (5 min) — long durations leave a heat trail so you can see where you left off in a long doc</div>
+      </div>
+      <div class="field">
+        <label>Celebrate every N <span id="statName">words</span></label>
+        <input type="number" id="set-milestone" min="1" max="10000" value="50">
+      </div>
+    </div>
+
+    <!-- CELEBRATIONS -->
+    <div class="section">
+      <h3>Celebrations</h3>
+      <div id="fx-rows"></div>
+      <button class="reset" onclick="resetSettings()">Reset all to defaults</button>
+    </div>
+
+    <div class="footer-note">
+      ⌘Z undo · ⌘⇧Z redo · ⌘O open · ⌘S save · ⌘, settings · Esc close<br>
+      <br>
+      <b style="color:var(--ink);font-weight:500;">textamine</b> — text + dopamine.<br>
+      autosaves locally · settings persist.
+    </div>
+  </aside>
+
+<script>
+  /* ──────────── elements ──────────── */
+  const editor    = document.getElementById('editor');
+  const count     = document.getElementById('count');
+  const countLab  = document.getElementById('countLabel');
+  const wordsEl   = document.getElementById('words');
+  const charsEl   = document.getElementById('chars');
+  const linesEl   = document.getElementById('lines');
+  const nextEl    = document.getElementById('next');
+  const readEl    = document.getElementById('readTime');
+  const filename  = document.getElementById('filename');
+  const settings  = document.getElementById('settings');
+  const fxCanvas  = document.getElementById('fx');
+  const fctx      = fxCanvas.getContext('2d');
+
+  /* ──────────── palette ──────────── */
+  const PALETTE = ['#ff3b30','#ff9500','#ffcc00','#34c759','#00c7be','#007aff','#5856d6','#af52de','#ff2d55','#ff453a','#30d158','#64d2ff','#bf5af2'];
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const randomHsl = (s=75, l=50) => `hsl(${Math.floor(Math.random() * 360)}, ${s}%, ${l}%)`;
+
+  /* ──────────── celebration registry ──────────── */
+  const FX = {
+    pulse:     { name: 'Counter pulse',    on: true,  amt: 18, min: 5,  max: 100, suffix: '%' },  // scale percent above 1.0
+    bits:      { name: 'Text bits',        on: true,  amt: 22, min: 0,  max: 60 },
+    confetti:  { name: 'Confetti rain',    on: true,  amt: 100, min: 0, max: 300 },
+    fireworks: { name: 'Fireworks burst',  on: true,  amt: 40, min: 0,  max: 120 },
+    shockwave: { name: 'Shockwave rings',  on: true,  amt: 2,  min: 0,  max: 5 },
+    flash:     { name: 'Screen flash',     on: false, amt: 1,  min: 0,  max: 1 },
+    stamp:     { name: 'Big stamp',        on: true,  amt: 1,  min: 0,  max: 1 },
+    glitch:    { name: 'Glitch RGB',       on: false, amt: 5,  min: 0,  max: 15 },
+    pageShake: { name: 'Page shake',       on: false, amt: 4,  min: 0,  max: 15 }
+  };
+
+  /* ──────────── settings ──────────── */
+  const DEFAULTS = {
+    stat: 'chars',
+    page: '816',
+    countPos: 'center',
+    font: "'JetBrains Mono', monospace",
+    bold: false,
+    dark: (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) || false,
+    colorMode: 'solid',
+    color: null,
+    colorInterval: 10,
+    rainbowSpeed: 3,
+    shake: 2,
+    milestone: 100,
+    fireCaret: { on: true, intensity: 5 },
+    heat: { on: true, color: '#ff3a2a', duration: 2.5 },
+    fx: {}
+  };
+  for (const k of Object.keys(FX)) DEFAULTS.fx[k] = { on: FX[k].on, amt: FX[k].amt };
+
+  let cfg = loadConfig();
+
+  function loadConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('textamine-settings') || '{}');
+      const merged = { ...DEFAULTS, ...saved };
+      merged.fx = { ...DEFAULTS.fx, ...(saved.fx || {}) };
+      // legacy migration: previous default was a hardcoded '#0a0a0a' which made
+      // the counter invisible-on-its-own-color in dark mode. anyone with that
+      // exact saved value never explicitly chose it, so flip to theme-following.
+      if (merged.color === '#0a0a0a' || merged.color === '#0A0A0A') merged.color = null;
+      return merged;
+    } catch { return JSON.parse(JSON.stringify(DEFAULTS)); }
+  }
+  function saveConfig() { localStorage.setItem('textamine-settings', JSON.stringify(cfg)); }
+  function resetSettings() {
+    cfg = JSON.parse(JSON.stringify(DEFAULTS));
+    saveConfig();
+    bindSettings();
+    applySettings();
+    location.reload();
+  }
+  function toggleSettings() { settings.classList.toggle('open'); }
+
+  const STAT_DEFS = {
+    words:        { label: 'Words',      fn: t => (t.trim() ? t.trim().split(/\s+/).length : 0) },
+    chars:        { label: 'Chars',      fn: t => t.length },
+    charsNoSpace: { label: 'Chars (ns)', fn: t => t.replace(/\s/g, '').length },
+    lines:        { label: 'Lines',      fn: t => t ? t.split('\n').length : 0 },
+    sentences:    { label: 'Sentences',  fn: t => (t.match(/[^.!?]+[.!?]+/g) || []).length },
+    paragraphs:   { label: 'Paragraphs', fn: t => t.trim() ? t.trim().split(/\n\s*\n/).length : 0 },
+    readTime:     { label: 'Min Read',   fn: t => Math.max(0, Math.ceil((t.trim() ? t.trim().split(/\s+/).length : 0) / 200)) }
+  };
+
+  function applySettings() {
+    document.documentElement.style.setProperty('--page',
+      cfg.page === '100%' ? '100%' : cfg.page + 'px');
+    document.documentElement.style.setProperty('--body-font', cfg.font);
+    document.documentElement.style.setProperty('--body-weight', cfg.bold ? 700 : 400);
+    document.documentElement.style.setProperty('--shake', cfg.shake + 'px');
+    document.documentElement.style.setProperty('--hot-color', cfg.heat.color);
+    document.documentElement.style.setProperty('--cool-duration', (cfg.heat.duration * 1000) + 'ms');
+    document.body.classList.toggle('dark', !!cfg.dark);
+    // if counter color is following theme (null), sync the picker display so it
+    // shows the actual rendered color rather than going stale
+    if (!cfg.color) {
+      const inp = document.getElementById('set-color');
+      if (inp) inp.value = cfg.dark ? '#ededed' : '#0a0a0a';
+    }
+    const header = document.getElementById('header');
+    header.classList.remove('pos-left', 'pos-center', 'pos-right');
+    header.classList.add('pos-' + cfg.countPos);
+    countLab.textContent = STAT_DEFS[cfg.stat].label;
+    document.getElementById('statName').textContent = STAT_DEFS[cfg.stat].label.toLowerCase();
+
+    // counter color mode
+    stopRainbow();
+    if (cfg.colorMode === 'solid')         setColor(cfg.color);
+    else if (cfg.colorMode === 'rainbow')  startRainbow();
+    // perChar/perN/perWord set color on input
+
+    // show/hide conditional fields
+    document.getElementById('field-color').classList.toggle('hidden',        cfg.colorMode !== 'solid');
+    document.getElementById('field-interval').classList.toggle('hidden',     cfg.colorMode !== 'perN');
+    document.getElementById('field-rainbowSpeed').classList.toggle('hidden', cfg.colorMode !== 'rainbow');
+
+    update();
+  }
+
+  function setColor(c) {
+    // null/empty → clear the override so --num falls back to var(--ink), which
+    // auto-flips with light/dark theme. any explicit color the user picked sticks.
+    if (!c) {
+      document.documentElement.style.removeProperty('--num');
+    } else {
+      document.documentElement.style.setProperty('--num', c);
+    }
+  }
+
+  let rainbowHue = 0, rainbowTimer = null;
+  function startRainbow() {
+    stopRainbow();
+    rainbowTimer = setInterval(() => {
+      rainbowHue = (rainbowHue + cfg.rainbowSpeed) % 360;
+      setColor(`hsl(${rainbowHue}, 75%, 50%)`);
+    }, 60);
+  }
+  function stopRainbow() {
+    if (rainbowTimer) { clearInterval(rainbowTimer); rainbowTimer = null; }
+  }
+
+  /* ──────────── build FX rows + bind ──────────── */
+  function buildFxRows() {
+    const wrap = document.getElementById('fx-rows');
+    wrap.innerHTML = '';
+    for (const key of Object.keys(FX)) {
+      const def = FX[key];
+      const state = cfg.fx[key] || { on: def.on, amt: def.amt };
+      const row = document.createElement('div');
+      row.className = 'fx-row' + (state.on ? '' : ' off');
+      row.innerHTML = `
+        <input type="checkbox" id="fx-${key}-on" ${state.on ? 'checked' : ''}>
+        <label for="fx-${key}-on">${def.name}</label>
+        <input type="range" id="fx-${key}-amt" min="${def.min}" max="${def.max}" value="${state.amt}" style="grid-column: 1 / -1;">
+        <div class="val" id="fx-${key}-val" style="grid-column: 1 / -1; margin-top:-6px;">${state.amt}${def.suffix || ''}</div>
+      `;
+      wrap.appendChild(row);
+      const onCb = document.getElementById(`fx-${key}-on`);
+      const amtSl = document.getElementById(`fx-${key}-amt`);
+      const valEl = document.getElementById(`fx-${key}-val`);
+      onCb.onchange = () => {
+        cfg.fx[key].on = onCb.checked;
+        row.classList.toggle('off', !onCb.checked);
+        saveConfig();
+      };
+      amtSl.oninput = () => {
+        cfg.fx[key].amt = +amtSl.value;
+        valEl.textContent = amtSl.value + (def.suffix || '');
+        saveConfig();
+      };
+    }
+  }
+
+  function bindSettings() {
+    const $ = id => document.getElementById(id);
+    $('set-stat').value          = cfg.stat;
+    $('set-page').value          = cfg.page;
+    $('set-countPos').value      = cfg.countPos;
+    $('set-font').value          = cfg.font;
+    $('set-bold').checked        = cfg.bold;
+    $('set-dark').checked        = cfg.dark;
+    $('set-color').value         = cfg.color || (cfg.dark ? '#ededed' : '#0a0a0a');
+    $('set-colorMode').value     = cfg.colorMode;
+    $('set-colorInterval').value = cfg.colorInterval;
+    $('set-rainbowSpeed').value  = cfg.rainbowSpeed;
+    $('set-shake').value         = cfg.shake;
+    $('set-milestone').value     = cfg.milestone;
+    $('set-fire-on').checked        = cfg.fireCaret.on;
+    $('set-fire-intensity').value   = cfg.fireCaret.intensity;
+    $('set-heat-on').checked        = cfg.heat.on;
+    $('set-heat-color').value       = cfg.heat.color;
+    $('set-heat-duration').value    = cfg.heat.duration;
+    document.getElementById('shakeVal').textContent   = cfg.shake;
+    document.getElementById('rainbowVal').textContent = cfg.rainbowSpeed;
+    document.getElementById('fireVal').textContent    = cfg.fireCaret.intensity;
+
+    $('set-stat').onchange      = e => { cfg.stat = e.target.value; applySettings(); saveConfig(); lastMilestone = Math.floor(currentStat() / cfg.milestone); };
+    $('set-page').onchange      = e => { cfg.page = e.target.value; applySettings(); saveConfig(); };
+    $('set-countPos').onchange  = e => { cfg.countPos = e.target.value; applySettings(); saveConfig(); };
+    $('set-font').onchange      = e => { cfg.font = e.target.value; applySettings(); saveConfig(); };
+    $('set-bold').onchange      = e => { cfg.bold = e.target.checked; applySettings(); saveConfig(); };
+    $('set-dark').onchange      = e => { cfg.dark = e.target.checked; applySettings(); saveConfig(); };
+    $('set-color').oninput      = e => { cfg.color = e.target.value; if (cfg.colorMode === 'solid') setColor(cfg.color); saveConfig(); };
+    $('set-colorMode').onchange = e => { cfg.colorMode = e.target.value; applySettings(); saveConfig(); };
+    $('set-colorInterval').onchange = e => { cfg.colorInterval = Math.max(1, +e.target.value || 10); saveConfig(); };
+    $('set-rainbowSpeed').oninput = e => {
+      cfg.rainbowSpeed = +e.target.value;
+      document.getElementById('rainbowVal').textContent = cfg.rainbowSpeed;
+      saveConfig();
+    };
+    $('set-shake').oninput      = e => {
+      cfg.shake = +e.target.value;
+      document.getElementById('shakeVal').textContent = cfg.shake;
+      applySettings(); saveConfig();
+    };
+    $('set-milestone').onchange = e => {
+      cfg.milestone = Math.max(1, +e.target.value || 50);
+      saveConfig();
+      lastMilestone = Math.floor(currentStat() / cfg.milestone);
+      update();
+    };
+    $('set-fire-on').onchange = e => { cfg.fireCaret.on = e.target.checked; saveConfig(); };
+    $('set-fire-intensity').oninput = e => {
+      cfg.fireCaret.intensity = +e.target.value;
+      document.getElementById('fireVal').textContent = cfg.fireCaret.intensity;
+      saveConfig();
+    };
+    $('set-heat-on').onchange = e => { cfg.heat.on = e.target.checked; saveConfig(); };
+    $('set-heat-color').oninput = e => {
+      cfg.heat.color = e.target.value;
+      applySettings(); saveConfig();
+    };
+    $('set-heat-duration').onchange = e => {
+      const v = +e.target.value;
+      cfg.heat.duration = Math.min(300, Math.max(0.3, isFinite(v) ? v : 2.5));
+      e.target.value = cfg.heat.duration;
+      applySettings(); saveConfig();
+    };
+    buildFxRows();
+  }
+
+  /* ──────────── stats & input ──────────── */
+  let lastMilestone = 0;
+  let currentName   = 'untitled.txt';
+  let keystrokes    = 0;
+
+  function getText() {
+    // contenteditable inserts phantom <br> elements that look empty to humans but
+    // produce "\n" in innerText. textContent ignores <br>/<img>/etc, so it's the
+    // honest measure of whether there's real text.
+    if (!(editor.textContent || '').length) return '';
+    return editor.innerText || '';
+  }
+  function currentStat() { return STAT_DEFS[cfg.stat].fn(getText()); }
+
+  function update() {
+    const t = getText();
+    const n = STAT_DEFS[cfg.stat].fn(t);
+    count.firstChild.nodeValue = n;
+    wordsEl.textContent = STAT_DEFS.words.fn(t);
+    charsEl.textContent = t.length;
+    linesEl.textContent = Math.max(1, t.split('\n').length);
+    readEl.textContent  = STAT_DEFS.readTime.fn(t);
+    nextEl.textContent  = (Math.floor(n / cfg.milestone) + 1) * cfg.milestone;
+    const reached = Math.floor(n / cfg.milestone);
+    if (n > 0 && reached > lastMilestone) {
+      lastMilestone = reached;
+      celebrate(n);
+    } else if (reached < lastMilestone) {
+      lastMilestone = reached;
+    }
+  }
+
+  function shake() {
+    if (cfg.shake <= 0) return;
+    count.classList.remove('shaking');
+    void count.offsetWidth;
+    count.classList.add('shaking');
+  }
+
+  function handleColorOnInput(e) {
+    const inserted = e && e.data;
+    if (cfg.colorMode === 'perChar') setColor(randomHsl());
+    else if (cfg.colorMode === 'perN' && keystrokes % cfg.colorInterval === 0) setColor(randomHsl());
+    else if (cfg.colorMode === 'perWord' && inserted && /\s/.test(inserted)) setColor(randomHsl());
+  }
+
+  /* ──────────── heat-treat newly typed characters ──────────── */
+  function insertHotChars(str) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount) return false;
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) return false;
+    range.deleteContents();
+
+    // climb out of any enclosing .hot span so new spans land as SIBLINGS
+    let cur = range.startContainer;
+    while (cur && cur !== editor) {
+      if (cur.nodeType === Node.ELEMENT_NODE && cur.classList && cur.classList.contains('hot')) {
+        range.setStartAfter(cur);
+        range.collapse(true);
+        break;
+      }
+      cur = cur.parentNode;
+    }
+
+    const span = document.createElement('span');
+    span.className = 'hot';
+    span.textContent = str;
+    // Pin the animation's end color to the *current* theme's ink at insert time.
+    // Browsers (esp. Safari/WebKit) resolve var() inside @keyframes against :root
+    // and freeze the value, so without this the cool animation in dark mode would
+    // visually transition red → black. Setting --cool-end as an inline custom
+    // property on the span makes the keyframe target a concrete value.
+    span.style.setProperty('--cool-end',
+      document.body.classList.contains('dark') ? '#ededed' : '#0a0a0a');
+    range.insertNode(span);
+
+    // After the cool animation completes, strip the .hot class so the span
+    // inherits color from .editor (var(--ink)) dynamically. Without this,
+    // animation-fill-mode: forwards freezes the resolved var(--ink) value at
+    // animation start time — and Safari/WebKit can resolve var() inside
+    // @keyframes against :root only, baking in the LIGHT-mode color (#0a0a0a)
+    // even when body.dark is active. Removing the class is a lightweight
+    // attribute change (no DOM tree mutation) so the caret stays put.
+    let cleaned = false;
+    const cleanup = () => {
+      if (cleaned) return;
+      cleaned = true;
+      span.classList.remove('hot');
+      // belt-and-suspenders: nuke any inline style the browser may have written
+      span.style.removeProperty('color');
+      span.style.removeProperty('animation');
+      span.style.removeProperty('--cool-end');
+    };
+    span.addEventListener('animationend', cleanup, { once: true });
+    // fallback in case animationend never fires (tab hidden during animation,
+    // browser drops the event, etc.) — fire at duration + a small buffer
+    setTimeout(cleanup, (cfg.heat.duration * 1000) + 200);
+
+    // caret after the span
+    const r2 = document.createRange();
+    r2.setStartAfter(span);
+    r2.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r2);
+
+    // Force the browser to flush layout before reading rect — otherwise just-inserted
+    // spans in fresh containers (e.g. the <div><br></div> a fresh Enter creates) can
+    // return height=0 and leave caretRect stale on the line above
+    void span.offsetHeight;
+    const sr = span.getBoundingClientRect();
+    if (sr.height > 0) {
+      caretRect = { left: sr.right, top: sr.top, height: sr.height, width: 1 };
+    } else {
+      // span rect still invalid; defer to measureCaret with all its fallbacks
+      measureCaret();
+    }
+    return true;
+  }
+
+  editor.addEventListener('beforeinput', e => {
+    if (!cfg.heat.on) return;
+    // only intercept plain text input; Enter, deletes, paste, IME keep native behaviour
+    if (e.inputType === 'insertText' && typeof e.data === 'string' && e.data.length > 0) {
+      e.preventDefault();
+      if (insertHotChars(e.data)) {
+        // beforeinput's preventDefault stops the native input event firing, so mirror its work
+        keystrokes++;
+        typeStamps.push(performance.now());
+        handleColorOnInput({ data: e.data });
+        ensureCaretVisible();
+        spawnFire();
+        shake();
+        update();
+        snapshot();
+        scheduleAutosave();
+      }
+    }
+  });
+
+  editor.addEventListener('input', e => {
+    keystrokes++;
+    typeStamps.push(performance.now());
+    handleColorOnInput(e);
+    measureCaret();
+    ensureCaretVisible();
+    spawnFire();
+    shake();
+    update();
+    snapshot();
+    scheduleAutosave();
+  });
+
+  /* ──────────── undo / redo (custom history stack) ──────────── */
+  const history = [];
+  let historyIdx = -1;
+  const MAX_HISTORY = 80;
+  let historyTimer = null;
+  let restoring = false;
+
+  function snapshot(immediate = false) {
+    if (restoring) return;
+    const doit = () => {
+      historyTimer = null;
+      const html = editor.innerHTML;
+      if (history[historyIdx] === html) return;
+      history.length = historyIdx + 1;
+      history.push(html);
+      if (history.length > MAX_HISTORY) history.shift();
+      else historyIdx++;
+    };
+    if (immediate) {
+      if (historyTimer) { clearTimeout(historyTimer); historyTimer = null; }
+      doit(); return;
+    }
+    if (historyTimer) clearTimeout(historyTimer);
+    historyTimer = setTimeout(doit, 450);
+  }
+
+  function restoreFromHistory() {
+    restoring = true;
+    editor.innerHTML = history[historyIdx];
+    // place caret at end
+    const sel = window.getSelection();
+    const r = document.createRange();
+    r.selectNodeContents(editor);
+    r.collapse(false);
+    sel.removeAllRanges();
+    sel.addRange(r);
+    measureCaret();
+    ensureCaretVisible();
+    update();
+    scheduleAutosave();
+    restoring = false;
+  }
+
+  function undo() {
+    if (historyTimer) { clearTimeout(historyTimer); historyTimer = null; snapshotNow(); }
+    if (historyIdx <= 0) return;
+    historyIdx--;
+    restoreFromHistory();
+  }
+  function redo() {
+    if (historyIdx >= history.length - 1) return;
+    historyIdx++;
+    restoreFromHistory();
+  }
+  function snapshotNow() {
+    const html = editor.innerHTML;
+    if (history[historyIdx] === html) return;
+    history.length = historyIdx + 1;
+    history.push(html);
+    if (history.length > MAX_HISTORY) history.shift();
+    else historyIdx++;
+  }
+
+  /* ──────────── autosave to localStorage ──────────── */
+  let autosaveTimer = null;
+  let savedFlashTimer = null;
+
+  function scheduleAutosave() {
+    if (autosaveTimer) clearTimeout(autosaveTimer);
+    autosaveTimer = setTimeout(doAutosave, 1200);
+  }
+  function doAutosave() {
+    autosaveTimer = null;
+    try {
+      localStorage.setItem('textamine-doc-html', editor.innerHTML);
+      localStorage.setItem('textamine-doc-name',  currentName);
+      localStorage.setItem('textamine-doc-saved', String(Date.now()));
+      flashSaved();
+    } catch (_) { /* quota etc — ignore */ }
+  }
+  function flashSaved() {
+    filename.textContent = currentName + ' · saved';
+    if (savedFlashTimer) clearTimeout(savedFlashTimer);
+    savedFlashTimer = setTimeout(() => { filename.textContent = currentName; }, 1100);
+  }
+  function loadSavedDoc() {
+    try {
+      const html = localStorage.getItem('textamine-doc-html');
+      const text = localStorage.getItem('textamine-doc');  // legacy fallback
+      const name = localStorage.getItem('textamine-doc-name');
+      if (html && html.length) {
+        editor.innerHTML = html;
+        // strip .hot class — heat is session-local, don't re-animate everything on reload
+        editor.querySelectorAll('.hot').forEach(el => el.classList.remove('hot'));
+        // also nuke any inline color/animation styles on all spans — if a previous
+        // session somehow persisted them (or pasted content brought them in),
+        // they'd break theme-aware inheritance
+        editor.querySelectorAll('span').forEach(el => {
+          if (el.style) {
+            el.style.removeProperty('color');
+            el.style.removeProperty('animation');
+            el.style.removeProperty('--cool-end');
+          }
+        });
+        // if the saved HTML is structurally empty (just phantom <br>s, no real text,
+        // no images), reset to truly empty so the counter shows 0
+        if (!(editor.textContent || '').length && !editor.querySelector('img')) {
+          editor.innerHTML = '';
+        }
+      } else if (text && text.length) {
+        editor.innerText = text;
+      } else {
+        return;
+      }
+      if (name) { currentName = name; filename.textContent = name; }
+      lastMilestone = Math.floor(currentStat() / cfg.milestone);
+      update();
+      // give layout one frame then center
+      requestAnimationFrame(() => {
+        measureCaret();
+        ensureCaretVisible();
+      });
+    } catch (_) {}
+  }
+  // flush before tab closes — covers the up-to-1.2s autosave debounce window
+  window.addEventListener('beforeunload', () => { if (autosaveTimer) doAutosave(); });
+
+  /* ──────────── keep the caret in view while typing ──────────── */
+  function ensureCaretVisible() {
+    if (!caretRect) return;
+    const main = document.getElementById('main');
+    const r = main.getBoundingClientRect();
+    const margin = 60;          // breathing room from the edges
+    const caretBottom = caretRect.top + caretRect.height;
+
+    if (caretBottom > r.bottom - margin) {
+      // caret went below the visible area → scroll down
+      const delta = caretBottom - (r.bottom - margin);
+      main.scrollTop += delta;
+      caretRect.top -= delta;
+    } else if (caretRect.top < r.top + margin) {
+      // caret went above the visible area → scroll up
+      const delta = caretRect.top - (r.top + margin);
+      main.scrollTop += delta;
+      caretRect.top -= delta;
+    }
+  }
+
+  /* ──────────── images (paste + drop) ──────────── */
+  function insertImage(dataUrl) {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || !editor.contains(sel.getRangeAt(0).startContainer)) {
+      // editor wasn't focused; fall back to appending
+      editor.focus();
+      const r = document.createRange();
+      r.selectNodeContents(editor);
+      r.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const img = document.createElement('img');
+    img.src = dataUrl;
+    img.alt = '';
+    range.insertNode(img);
+    // line break after image so subsequent typing isn't inline
+    const br = document.createElement('br');
+    img.parentNode.insertBefore(br, img.nextSibling);
+    const r2 = document.createRange();
+    r2.setStartAfter(br);
+    r2.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(r2);
+    measureCaret();
+    ensureCaretVisible();
+    update();
+    snapshot();
+    scheduleAutosave();
+  }
+
+  editor.addEventListener('paste', e => {
+    const data = e.clipboardData || window.clipboardData;
+    if (!data) return;
+    // image first
+    for (const item of (data.items || [])) {
+      if (item.type && item.type.startsWith('image/')) {
+        e.preventDefault();
+        const blob = item.getAsFile();
+        if (!blob) continue;
+        const reader = new FileReader();
+        reader.onload = () => insertImage(reader.result);
+        reader.readAsDataURL(blob);
+        return;
+      }
+    }
+    // otherwise fall back to plain text (overrides default rich paste)
+    e.preventDefault();
+    const text = data.getData('text/plain');
+    if (text) document.execCommand('insertText', false, text);
+  });
+
+  // image drag-and-drop
+  editor.addEventListener('dragenter', e => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+      document.body.classList.add('dragging-image');
+    }
+  });
+  editor.addEventListener('dragleave', e => {
+    if (e.target === editor) document.body.classList.remove('dragging-image');
+  });
+  editor.addEventListener('dragover', e => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) {
+      e.preventDefault();
+    }
+  });
+  editor.addEventListener('drop', e => {
+    document.body.classList.remove('dragging-image');
+    if (!e.dataTransfer) return;
+    const imageFiles = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) return;
+    e.preventDefault();
+    imageFiles.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = () => insertImage(reader.result);
+      reader.readAsDataURL(file);
+    });
+  });
+
+  /* ──────────── celebration dispatcher ──────────── */
+  const LABELS = ['NICE', 'GO', 'YES', 'KEEP', 'MORE', '✦', '●', '■'];
+
+  function recentWords(n = 5) {
+    const t = getText().trim();
+    if (!t) return [];
+    return t.split(/\s+/)
+      .slice(-n)
+      .filter(w => w.length > 0 && w.length < 20)
+      .map(w => w.replace(/[^\p{L}\p{N}'’-]/gu, ''))  // strip trailing punctuation
+      .filter(Boolean);
+  }
+
+  function bitsAngles() {
+    // angle 0 = right, π/2 = down, π = left, 3π/2 = up
+    switch (cfg.countPos) {
+      case 'center': return { min: Math.PI * 0.1,  span: Math.PI * 0.8  }; // fan down
+      case 'right':  return { min: Math.PI * 0.3,  span: Math.PI * 0.85 }; // down-left
+      default:       return { min: -Math.PI * 0.15, span: Math.PI * 0.85 }; // down-right
+    }
+  }
+
+  function celebrate(n) {
+    const fx = cfg.fx;
+    const rect = count.getBoundingClientRect();
+    const ox = rect.left + rect.width  * 0.35;
+    const oy = rect.top  + rect.height * 0.4;
+
+    if (fx.pulse.on && fx.pulse.amt > 0) {
+      const scale = 1 + fx.pulse.amt / 100;
+      count.style.setProperty('--pulse-scale', scale);
+      count.classList.remove('pulsing');
+      void count.offsetWidth;
+      count.classList.add('pulsing');
+    }
+
+    if (fx.bits.on && fx.bits.amt > 0) spawnBits(ox, oy, fx.bits.amt, n);
+    if (fx.confetti.on && fx.confetti.amt > 0) spawnConfetti(fx.confetti.amt);
+    if (fx.fireworks.on && fx.fireworks.amt > 0) spawnFireworks(ox, oy, fx.fireworks.amt);
+    if (fx.shockwave.on && fx.shockwave.amt > 0) spawnShockwave(ox, oy, fx.shockwave.amt);
+    if (fx.flash.on && fx.flash.amt > 0) spawnFlash();
+    if (fx.stamp.on && fx.stamp.amt > 0) spawnStamp(n);
+    if (fx.glitch.on && fx.glitch.amt > 0) {
+      count.style.setProperty('--glitch-x', fx.glitch.amt);
+      count.classList.remove('glitching');
+      void count.offsetWidth;
+      count.classList.add('glitching');
+    }
+    if (fx.pageShake.on && fx.pageShake.amt > 0) {
+      document.body.style.setProperty('--pshake', fx.pageShake.amt);
+      document.body.classList.remove('page-shaking');
+      void document.body.offsetWidth;
+      document.body.classList.add('page-shaking');
+    }
+  }
+
+  function spawnBits(ox, oy, amount, n) {
+    const recent = recentWords(6);
+    // mix in user's words (weighted heavier than canned labels so they show)
+    const labels = [
+      ...LABELS,
+      '+' + cfg.milestone,
+      String(n),
+      ...recent, ...recent, ...recent
+    ];
+    const a = bitsAngles();
+    for (let i = 0; i < amount; i++) {
+      const b = document.createElement('div');
+      b.className = 'bit';
+      b.textContent = labels[Math.floor(Math.random() * labels.length)];
+      const angle = a.min + Math.random() * a.span;
+      const dist  = 220 + Math.random() * 260;
+      b.style.left = ox + 'px';
+      b.style.top  = oy + 'px';
+      b.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+      b.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
+      b.style.setProperty('--r',  (Math.random() * 360 - 180) + 'deg');
+      b.style.fontSize = (11 + Math.random() * 8) + 'px';
+      b.style.animationDelay = (Math.random() * 0.18) + 's';
+      document.body.appendChild(b);
+      setTimeout(() => b.remove(), 1700);
+    }
+  }
+
+  function spawnShockwave(ox, oy, rings) {
+    for (let i = 0; i < rings; i++) {
+      setTimeout(() => {
+        const r = document.createElement('div');
+        r.className = 'ring';
+        r.style.left = ox + 'px';
+        r.style.top  = oy + 'px';
+        document.body.appendChild(r);
+        setTimeout(() => r.remove(), 900);
+      }, i * 180);
+    }
+  }
+
+  function spawnFlash() {
+    const f = document.createElement('div');
+    f.className = 'flash';
+    document.body.appendChild(f);
+    setTimeout(() => f.remove(), 240);
+  }
+
+  function spawnStamp(n) {
+    const s = document.createElement('div');
+    s.className = 'stamp';
+    s.textContent = '+' + cfg.milestone;
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 1200);
+  }
+
+  /* ──────────── canvas particles ──────────── */
+  let particles = [];
+
+  function resizeFx() {
+    const dpr = window.devicePixelRatio || 1;
+    fxCanvas.width  = window.innerWidth  * dpr;
+    fxCanvas.height = window.innerHeight * dpr;
+    fxCanvas.style.width  = window.innerWidth  + 'px';
+    fxCanvas.style.height = window.innerHeight + 'px';
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeFx);
+  resizeFx();
+
+  class Confetti {
+    constructor() {
+      this.x = Math.random() * window.innerWidth;
+      this.y = -20 - Math.random() * 200;
+      this.w = 6 + Math.random() * 6;
+      this.h = 10 + Math.random() * 8;
+      this.vx = (Math.random() - 0.5) * 5;
+      this.vy = 2 + Math.random() * 3;
+      this.rot = Math.random() * Math.PI * 2;
+      this.rotV = (Math.random() - 0.5) * 0.25;
+      this.color = pick(PALETTE);
+      this.alive = true;
+      this.wobble = Math.random() * Math.PI * 2;
+    }
+    update() {
+      this.wobble += 0.1;
+      this.x += this.vx + Math.sin(this.wobble) * 0.6;
+      this.y += this.vy;
+      this.vy += 0.08;
+      this.vx *= 0.995;
+      this.rot += this.rotV;
+      if (this.y > window.innerHeight + 40) this.alive = false;
+    }
+    draw(ctx) {
+      ctx.save();
+      ctx.translate(this.x, this.y);
+      ctx.rotate(this.rot);
+      ctx.fillStyle = this.color;
+      ctx.fillRect(-this.w / 2, -this.h / 2, this.w, this.h);
+      ctx.restore();
+    }
+  }
+
+  class Spark {
+    constructor(ox, oy, opts = {}) {
+      const angle = opts.angle ?? Math.random() * Math.PI * 2;
+      const speed = opts.speed ?? (3 + Math.random() * 7);
+      this.x = ox; this.y = oy;
+      this.vx = Math.cos(angle) * speed;
+      this.vy = Math.sin(angle) * speed;
+      this.color = opts.color || pick(PALETTE);
+      this.life = 50 + Math.random() * 40;
+      this.maxLife = this.life;
+      this.size = 2 + Math.random() * 2.5;
+      this.alive = true;
+      this.gravity = opts.gravity ?? 0.15;
+    }
+    update() {
+      this.x += this.vx;
+      this.y += this.vy;
+      this.vy += this.gravity;
+      this.vx *= 0.98;
+      this.life--;
+      if (this.life <= 0) this.alive = false;
+    }
+    draw(ctx) {
+      ctx.globalAlpha = Math.max(0, this.life / this.maxLife);
+      ctx.fillStyle = this.color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  /* ──────────── fire particle (caret flame) ──────────── */
+  class FireParticle {
+    constructor(rect, speedMult = 1) {
+      const jx = (Math.random() - 0.5) * 6;
+      this.x = rect.left + jx;
+      this.y = rect.top + rect.height - 2 + (Math.random() - 0.5) * 3;
+      this.vx = (Math.random() - 0.5) * 0.7;
+      this.vy = -0.8 - Math.random() * (1.5 + speedMult * 0.6);
+      this.size = 3 + Math.random() * (4 + speedMult * 0.3);
+      this.maxLife = 28 + Math.random() * (22 + speedMult * 2);
+      this.life = this.maxLife;
+      this.alive = true;
+      this.flicker = Math.random() * Math.PI * 2;
+    }
+    update() {
+      this.flicker += 0.4;
+      this.x += this.vx + Math.sin(this.flicker) * 0.25;
+      this.y += this.vy;
+      this.vy -= 0.06; // accelerate upward
+      this.vx *= 0.97;
+      this.size *= 0.965;
+      this.life--;
+      if (this.life <= 0 || this.size < 0.4) this.alive = false;
+    }
+    draw(ctx) {
+      const t = this.life / this.maxLife;
+      let color;
+      if      (t > 0.78) color = `rgba(255, 255, 230, ${Math.min(1, t * 1.2)})`;
+      else if (t > 0.58) color = `rgba(255, 220, 110, ${t})`;
+      else if (t > 0.38) color = `rgba(255, 150, 40,  ${t})`;
+      else if (t > 0.18) color = `rgba(255, 70,  20,  ${t})`;
+      else               color = `rgba(140, 30,  10,  ${t * 0.6})`;
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = color;
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  }
+
+  /* ──────────── caret tracking + typing speed ──────────── */
+  let caretRect = null;
+  let typeStamps = [];     // timestamps of recent keystrokes
+  const TYPE_WINDOW = 1200; // ms window for CPS calc
+
+  function measureCaret() {
+    const sel = window.getSelection();
+    if (!sel || !sel.rangeCount || document.activeElement !== editor) {
+      caretRect = null; return;
+    }
+    const range = sel.getRangeAt(0);
+    if (!editor.contains(range.startContainer)) { caretRect = null; return; }
+
+    const collapsed = range.cloneRange();
+    collapsed.collapse(true);
+
+    // attempt 1: direct getClientRects on collapsed range
+    const rects = collapsed.getClientRects();
+    if (rects.length && rects[0].height > 0) {
+      const r = rects[0];
+      caretRect = { left: r.left, top: r.top, height: r.height, width: 1 };
+      return;
+    }
+    // attempt 2: getBoundingClientRect
+    const br = collapsed.getBoundingClientRect();
+    if (br.height > 0 && (br.left !== 0 || br.top !== 0)) {
+      caretRect = { left: br.left, top: br.top, height: br.height, width: 1 };
+      return;
+    }
+
+    // attempt 3: derive from adjacent content
+    const sc = range.startContainer;
+    const so = range.startOffset;
+    let derived = null;
+
+    if (sc.nodeType === Node.TEXT_NODE) {
+      if (so > 0) {
+        const r = document.createRange();
+        r.setStart(sc, 0); r.setEnd(sc, so);
+        const tr = r.getBoundingClientRect();
+        if (tr.height > 0) derived = { left: tr.right, top: tr.top, height: tr.height, width: 1 };
+      } else if (sc.parentNode && sc.parentNode.getBoundingClientRect) {
+        const pr = sc.parentNode.getBoundingClientRect();
+        if (pr.height > 0) derived = { left: pr.left, top: pr.top, height: pr.height, width: 1 };
+      }
+    } else if (sc.nodeType === Node.ELEMENT_NODE) {
+      if (so > 0 && sc.childNodes[so - 1]) {
+        const prev = sc.childNodes[so - 1];
+        if (prev.nodeType === Node.ELEMENT_NODE) {
+          const pr = prev.getBoundingClientRect();
+          if (pr.height > 0) derived = { left: pr.right, top: pr.top, height: pr.height, width: 1 };
+        } else if (prev.nodeType === Node.TEXT_NODE) {
+          const r = document.createRange();
+          r.selectNodeContents(prev);
+          const tr = r.getBoundingClientRect();
+          if (tr.height > 0) derived = { left: tr.right, top: tr.top, height: tr.height, width: 1 };
+        }
+      } else if (sc.childNodes[so]) {
+        const next = sc.childNodes[so];
+        if (next.nodeType === Node.ELEMENT_NODE) {
+          const nr = next.getBoundingClientRect();
+          if (nr.height > 0) derived = { left: nr.left, top: nr.top, height: nr.height, width: 1 };
+        } else if (next.nodeType === Node.TEXT_NODE) {
+          const r = document.createRange();
+          r.selectNodeContents(next);
+          const tr = r.getBoundingClientRect();
+          if (tr.height > 0) derived = { left: tr.left, top: tr.top, height: tr.height, width: 1 };
+        }
+      }
+      // if sibling-based attempts failed (e.g. cursor in a <div> with only a zero-height <br>),
+      // fall back to the parent's content origin — that's the new line position, not the OLD one
+      if (!derived && sc !== editor && sc.getBoundingClientRect) {
+        const er = sc.getBoundingClientRect();
+        const cs = getComputedStyle(sc);
+        derived = {
+          left: er.left + parseFloat(cs.paddingLeft || 0),
+          top:  er.top  + parseFloat(cs.paddingTop  || 0),
+          height: parseFloat(cs.lineHeight) || 28,
+          width: 1
+        };
+      }
+    }
+
+    if (derived) { caretRect = derived; return; }
+
+    // last resort
+    const er = editor.getBoundingClientRect();
+    const cs = getComputedStyle(editor);
+    caretRect = {
+      left: er.left + parseFloat(cs.paddingLeft || 0),
+      top:  er.top  + parseFloat(cs.paddingTop  || 0),
+      height: parseFloat(cs.lineHeight) || 28,
+      width: 1
+    };
+  }
+  document.addEventListener('selectionchange', measureCaret);
+  editor.addEventListener('focus', measureCaret);
+  editor.addEventListener('blur',  () => { caretRect = null; });
+
+  function typingCPS() {
+    const now = performance.now();
+    typeStamps = typeStamps.filter(t => now - t < TYPE_WINDOW);
+    if (typeStamps.length < 2) return typeStamps.length;
+    const span = (typeStamps[typeStamps.length - 1] - typeStamps[0]) / 1000;
+    return span > 0 ? (typeStamps.length - 1) / span : 0;
+  }
+
+  function spawnFire() {
+    if (!cfg.fireCaret.on || !caretRect) return;
+    const cps = typingCPS();
+    // burst size scales with typing speed × intensity setting
+    const base = 2 + cps * 1.4;
+    const burst = Math.max(2, Math.min(40, Math.round(base * (cfg.fireCaret.intensity / 5))));
+    const speedMult = Math.min(8, cps);
+    for (let i = 0; i < burst; i++) {
+      particles.push(new FireParticle(caretRect, speedMult));
+    }
+  }
+
+  function spawnConfetti(amount) {
+    for (let i = 0; i < amount; i++) particles.push(new Confetti());
+  }
+  function spawnFireworks(ox, oy, amount) {
+    // 1-2 bursts spaced out
+    const bursts = Math.min(3, Math.max(1, Math.round(amount / 25)));
+    for (let b = 0; b < bursts; b++) {
+      setTimeout(() => {
+        const burstColor = pick(PALETTE);
+        const count = Math.ceil(amount / bursts);
+        for (let i = 0; i < count; i++) {
+          particles.push(new Spark(
+            ox + (Math.random() - 0.5) * 40,
+            oy + (Math.random() - 0.5) * 30,
+            { color: Math.random() > 0.3 ? burstColor : pick(PALETTE) }
+          ));
+        }
+      }, b * 220);
+    }
+  }
+
+  function animate() {
+    fctx.clearRect(0, 0, fxCanvas.width, fxCanvas.height);
+    particles = particles.filter(p => {
+      p.update();
+      p.draw(fctx);
+      return p.alive;
+    });
+    requestAnimationFrame(animate);
+  }
+  animate();
+
+  /* ──────────── editor helpers ──────────── */
+  function focusEditor(e) {
+    // Use contains() — when pasted multi-line text becomes <div> wrappers, a click
+    // inside such a wrapper has e.target === the div (not the editor). Strict
+    // equality misses that case and yanks the caret to the end of the document,
+    // overriding the user's actual click position.
+    if (editor.contains(e.target)) return;
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+
+  function loadFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    currentName = file.name;
+    filename.textContent = file.name;
+    const ext = file.name.split('.').pop().toLowerCase();
+    const reader = new FileReader();
+    if (ext === 'docx') {
+      reader.onload = e => {
+        mammoth.extractRawText({ arrayBuffer: e.target.result }).then(r => {
+          editor.innerText = r.value;
+          lastMilestone = Math.floor(currentStat() / cfg.milestone);
+          update();
+          snapshot(true);
+          scheduleAutosave();
+        });
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.onload = e => {
+        editor.innerText = e.target.result;
+        lastMilestone = Math.floor(currentStat() / cfg.milestone);
+        update();
+        snapshot(true);
+        scheduleAutosave();
+      };
+      reader.readAsText(file);
+    }
+  }
+
+  function saveFile() {
+    const name = currentName.endsWith('.docx')
+      ? currentName.replace(/\.docx$/i, '.txt') : currentName;
+    const blob = new Blob([getText()], { type: 'text/plain' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  document.addEventListener('keydown', e => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 's') { e.preventDefault(); saveFile(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === 'o') { e.preventDefault(); document.getElementById('file').click(); }
+    if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); toggleSettings(); }
+    // undo / redo — our own stack since beforeinput.preventDefault breaks native undo
+    if ((e.metaKey || e.ctrlKey) && !e.shiftKey && (e.key === 'z' || e.key === 'Z')) { e.preventDefault(); undo(); }
+    if ((e.metaKey || e.ctrlKey) && ((e.shiftKey && (e.key === 'z' || e.key === 'Z')) || e.key === 'y' || e.key === 'Y')) { e.preventDefault(); redo(); }
+    if (e.key === 'Escape' && settings.classList.contains('open')) toggleSettings();
+  });
+
+  /* ──────────── welcome overlay + mobile helpers ──────────── */
+  function dismissWelcome(e) {
+    if (e) e.stopPropagation();
+    const w = document.getElementById('welcome');
+    if (w) w.classList.add('hidden');
+    setTimeout(() => editor && editor.focus(), 50);
+  }
+  // any key dismisses the welcome
+  document.addEventListener('keydown', (e) => {
+    const w = document.getElementById('welcome');
+    if (w && !w.classList.contains('hidden')) {
+      e.preventDefault();
+      dismissWelcome();
+    }
+  }, true);
+
+  function copyLink(btn) {
+    const url = 'https://0x45o.com/textamine';
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        const original = btn.textContent;
+        btn.textContent = 'copied';
+        setTimeout(() => { btn.textContent = original; }, 1800);
+      }).catch(() => fallback());
+    } else { fallback(); }
+    function fallback() {
+      const ta = document.createElement('textarea');
+      ta.value = url; document.body.appendChild(ta);
+      ta.select(); document.execCommand('copy'); ta.remove();
+      btn.textContent = 'copied';
+      setTimeout(() => { btn.textContent = 'copy link'; }, 1800);
+    }
+  }
+
+  /* ──────────── boot ──────────── */
+  bindSettings();
+  applySettings();
+  loadSavedDoc();
+  snapshot(true);   // seed history with current state
+  editor.focus();
+</script>
+</body>
+</html>

@@ -1,5 +1,5 @@
 import { getStore } from '@netlify/blobs';
-import { COUNTRY_AREAS } from './country-areas.mjs';
+import { COUNTRY_AREAS } from '../shared/country-areas.mjs';
 
 // everyone's submissions live in one small json blob:
 // { users: { [id]: { n: <countries>, a: <km^2>, c: [codes], t: <updatedAt> } } }

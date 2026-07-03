@@ -1,3 +1,54 @@
 [build]
-  publish = "."
+  publish = "public"
   functions = "netlify/functions"
+
+# pretty urls for the mini projects
+[[redirects]]
+  from = "/myaijob"
+  to = "/myaijob.html"
+  status = 200
+
+[[redirects]]
+  from = "/searchposts"
+  to = "/searchposts.html"
+  status = 200
+
+[[redirects]]
+  from = "/breakdown"
+  to = "/breakdown.html"
+  status = 200
+
+[[redirects]]
+  from = "/mosaic"
+  to = "/mosaic/index.html"
+  status = 200
+
+[[redirects]]
+  from = "/textamine"
+  to = "/textamine.html"
+  status = 200
+
+[[redirects]]
+  from = "/rocketfocus"
+  to = "/rocketfocus.html"
+  status = 200
+
+[[redirects]]
+  from = "/cursorpet"
+  to = "/cursorpet.html"
+  status = 200
+
+[[redirects]]
+  from = "/isagihereyet"
+  to = "/isagihereyet.html"
+  status = 200
+
+[[redirects]]
+  from = "/stock"
+  to = "/stock.html"
+  status = 200
+
+[[redirects]]
+  from = "/scrollmeter"
+  to = "/scrollmeter.html"
+  status = 200

@@ -1,0 +1,813 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>scroll meter</title>
+    <meta name="description" content="how far have you actually scrolled on social media? find out.">
+    <meta property="og:title" content="scroll meter">
+    <meta property="og:description" content="how far have you actually scrolled on social media? find out.">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: monospace;
+            font-size: 13px;
+            background: white;
+            color: #000;
+            display: flex;
+            justify-content: center;
+            padding: 60px 20px 80px;
+            min-height: 100vh;
+            text-align: center;
+        }
+
+        .container { width: 100%; max-width: 460px; }
+
+        #back-btn {
+            position: fixed;
+            top: 20px; left: 20px;
+            font-size: 13px;
+            color: #aaa;
+            text-decoration: none;
+        }
+        #back-btn:hover { color: #000; }
+
+        /* ── Header ── */
+        .page-title { font-size: 16px; font-weight: bold; margin-bottom: 8px; }
+        .page-sub { color: #888; margin-bottom: 40px; line-height: 1.6; }
+
+        /* ── Fields ── */
+        .field { margin-bottom: 32px; }
+        .field-label { font-size: 11px; color: #aaa; margin-bottom: 14px; }
+
+        /* ── Scroll wheel ── */
+        .wheel-outer {
+            position: relative;
+            overflow: hidden;
+            height: 64px;
+            cursor: grab;
+            margin-bottom: 10px;
+        }
+        .wheel-outer:active { cursor: grabbing; }
+        .wheel-track {
+            display: flex;
+            overflow-x: scroll;
+            height: 100%;
+            scroll-snap-type: x mandatory;
+            scrollbar-width: none;
+            -webkit-overflow-scrolling: touch;
+            align-items: center;
+            padding: 0 calc(50% - 34px);
+            user-select: none;
+        }
+        .wheel-track::-webkit-scrollbar { display: none; }
+        .wheel-item {
+            flex-shrink: 0;
+            width: 68px; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            scroll-snap-align: center;
+            font-size: 11px; color: #ddd;
+            cursor: pointer;
+            transition: font-size 0.12s, color 0.12s, font-weight 0.12s;
+        }
+        .wheel-item.w1 { font-size: 13px; color: #bbb; }
+        .wheel-item.w2 { font-size: 13px; color: #777; }
+        .wheel-item.w0 { font-size: 22px; font-weight: bold; color: #000; }
+        .wheel-fade-l, .wheel-fade-r {
+            position: absolute; top: 0; bottom: 0; width: 38%;
+            pointer-events: none; z-index: 1;
+        }
+        .wheel-fade-l { left: 0;  background: linear-gradient(to right, #fff 40%, transparent); }
+        .wheel-fade-r { right: 0; background: linear-gradient(to left,  #fff 40%, transparent); }
+        .wheel-center-mark {
+            position: absolute;
+            left: calc(50% - 34px); top: 10px; bottom: 10px; width: 68px;
+            border-top: 1px solid #e0e0e0; border-bottom: 1px solid #e0e0e0;
+            pointer-events: none; z-index: 0;
+        }
+        .wheel-hint { font-size: 11px; color: #aaa; min-height: 15px; }
+
+        /* ── Platform buttons ── */
+        .platform-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 10px; }
+        .plat-btn {
+            font-family: monospace; font-size: 12px;
+            padding: 8px 16px; border: 1px solid #ddd; border-radius: 3px;
+            background: white; color: #999; cursor: pointer;
+            transition: all 0.1s; user-select: none;
+        }
+        .plat-btn:hover { border-color: #aaa; color: #555; }
+        .plat-btn.active { border-color: #000; background: #000; color: #fff; }
+        .platform-note { font-size: 11px; color: #bbb; min-height: 15px; }
+
+        /* ── Unit toggle ── */
+        .unit-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 0; }
+        .unit-btn {
+            font-family: monospace; font-size: 11px;
+            padding: 5px 12px; border: 1px solid #ddd; border-radius: 3px;
+            background: white; color: #bbb; cursor: pointer;
+            transition: all 0.1s; user-select: none;
+        }
+        .unit-btn:hover { border-color: #aaa; color: #666; }
+        .unit-btn.active { border-color: #555; color: #333; background: #f8f8f8; }
+
+        /* ── CTA button ── */
+        #calc-btn {
+            font-family: monospace; font-size: 16px; line-height: 1.4;
+            padding: 24px 36px; width: 100%; max-width: 340px;
+            color: #000; background: #fff; cursor: pointer;
+            border: 3px solid #000;
+            border-radius: 255px 18px 225px 18px / 18px 225px 18px 255px;
+            box-shadow: 5px 5px 0 #000;
+            transform: rotate(-1deg);
+            transition: transform 0.12s, box-shadow 0.12s;
+            margin-top: 8px; display: inline-block;
+        }
+        #calc-btn:hover { transform: rotate(0.5deg) scale(1.02); }
+        #calc-btn:active { transform: rotate(-0.5deg) translate(3px,3px); box-shadow: 2px 2px 0 #000; }
+
+        /* ── Results ── */
+        #results[hidden] { display: none !important; }
+
+        .results-nav {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 20px;
+        }
+        #recalc-btn {
+            background: none; border: none;
+            font-family: monospace; font-size: 12px; color: #aaa; cursor: pointer; padding: 0;
+        }
+        #recalc-btn:hover { color: #000; }
+
+        #share-btn {
+            font-family: monospace; font-size: 12px;
+            padding: 7px 13px; border: 1px solid #000; border-radius: 3px;
+            background: #000; color: #fff; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        #share-btn:hover { background: #222; }
+
+        .results-meta {
+            display: flex; align-items: center; justify-content: center;
+            gap: 14px; margin-bottom: 20px;
+        }
+        .results-ctx { font-size: 12px; color: #aaa; }
+        .results-unit-row { display: flex; gap: 5px; }
+        .results-unit-row .unit-btn { padding: 3px 9px; font-size: 11px; }
+
+        /* ── Stats 2×2 grid ── */
+        .stats-grid {
+            display: grid; grid-template-columns: 1fr 1fr;
+            gap: 1px; background: #e8e8e8;
+            border: 1px solid #e8e8e8; border-radius: 6px; overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .stat-cell { background: white; padding: 18px 12px 16px; text-align: center; }
+        .stat-lbl { font-size: 10px; color: #bbb; margin-bottom: 8px; letter-spacing: 0.3px; }
+        .stat-num { font-size: 26px; font-weight: bold; color: #000; line-height: 1; }
+
+        /* ── Projection box ── */
+        .proj-box {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 20px; border: 2px solid #000; border-radius: 5px;
+            margin-bottom: 36px; gap: 12px; text-align: left;
+        }
+        .proj-label { font-size: 12px; color: #555; display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+        #n-years-input {
+            font-family: monospace; font-size: 14px; font-weight: bold;
+            width: 46px; border: none; border-bottom: 1px solid #ccc;
+            text-align: center; color: #000; background: transparent; outline: none;
+            -moz-appearance: textfield; padding: 0 2px;
+        }
+        #n-years-input::-webkit-inner-spin-button,
+        #n-years-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+        #n-years-input:focus { border-bottom-color: #000; }
+        .proj-val { font-size: 26px; font-weight: bold; color: #000; white-space: nowrap; }
+
+        /* ── Comparisons ── */
+        .section-head { font-size: 11px; color: #aaa; margin-bottom: 16px; }
+        .comp-row {
+            display: flex; align-items: baseline; gap: 12px;
+            padding: 10px 0; border-bottom: 1px solid #f3f3f3; text-align: left;
+        }
+        .comp-row:last-child { border-bottom: none; }
+        .comp-num { font-size: 18px; font-weight: bold; min-width: 90px; text-align: right; flex-shrink: 0; line-height: 1.2; }
+        .comp-num.sm { font-size: 13px; }
+        .comp-name { color: #555; flex: 1; line-height: 1.4; }
+        .comp-name small { color: #bbb; font-size: 11px; }
+        .comp-sub { display: block; font-size: 10px; color: #bbb; margin-top: 2px; }
+
+        /* ── Assumptions ── */
+        .assumptions { margin-top: 40px; padding-top: 20px; border-top: 1px solid #f0f0f0; font-size: 11px; color: #bbb; line-height: 1.9; }
+
+        /* ── Share modal ── */
+        .share-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+            display: none; justify-content: center; align-items: center;
+            z-index: 200; padding: 20px;
+        }
+        .share-overlay.open { display: flex; }
+        .share-card {
+            background: white; border-radius: 4px; padding: 20px;
+            width: 100%; max-width: 580px; text-align: center;
+        }
+        .share-preview-wrap {
+            border: 1px solid #eee; border-radius: 3px; overflow: hidden;
+            margin-bottom: 16px; background: #f9f9f9;
+        }
+        .share-preview-wrap a { display: block; line-height: 0; }
+        .share-preview-wrap img { width: 100%; display: block; }
+        .share-action-row { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+        .share-dl-btn, .share-copy-btn {
+            font-family: monospace; font-size: 12px;
+            padding: 8px 16px; border: 1px solid #000; border-radius: 3px;
+            background: white; color: #000; cursor: pointer;
+        }
+        .share-dl-btn:hover, .share-copy-btn:hover { background: #f5f5f5; }
+        .share-x-btn {
+            font-family: monospace; font-size: 12px;
+            padding: 8px 16px; border: 1px solid #000; border-radius: 3px;
+            background: #000; color: #fff; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px;
+            text-decoration: none;
+        }
+        .share-x-btn:hover { background: #222; }
+        .share-tip { font-size: 11px; color: #bbb; margin-bottom: 14px; line-height: 1.6; }
+        .share-close-btn {
+            font-family: monospace; font-size: 12px; color: #aaa; background: none;
+            border: none; cursor: pointer; padding: 0;
+        }
+        .share-close-btn:hover { color: #000; }
+    </style>
+</head>
+<body>
+    <a id="back-btn" href="/">← back</a>
+
+    <div class="container">
+
+        <!-- ── FORM ── -->
+        <div id="form-section">
+            <p class="page-title">scroll meter</p>
+            <p class="page-sub">find out how far you've actually scrolled.</p>
+
+            <div class="field">
+                <div class="field-label">how long do you scroll per day?</div>
+                <div class="wheel-outer">
+                    <div class="wheel-fade-l"></div>
+                    <div class="wheel-fade-r"></div>
+                    <div class="wheel-center-mark"></div>
+                    <div class="wheel-track" id="wheel-track"></div>
+                </div>
+                <p class="wheel-hint" id="wheel-hint">1 hour / day</p>
+            </div>
+
+            <div class="field">
+                <div class="field-label">platform</div>
+                <div class="platform-row">
+                    <button class="plat-btn active" data-p="twitter"    data-note="~30 m/hour (text feed)">twitter / x</button>
+                    <button class="plat-btn"         data-p="tiktok"    data-note="~54 m/hour (video swipes)">tiktok</button>
+                    <button class="plat-btn"         data-p="instagram" data-note="~42 m/hour (mixed feed)">instagram</button>
+                </div>
+                <p class="platform-note" id="platform-note">~30 m/hour (text feed)</p>
+            </div>
+
+            <div class="field">
+                <div class="field-label">units</div>
+                <div class="unit-row">
+                    <button class="unit-btn active" data-u="metric">km / m</button>
+                    <button class="unit-btn"         data-u="imperial">mi / ft</button>
+                </div>
+            </div>
+
+            <button id="calc-btn">how far did i scroll?</button>
+        </div>
+
+        <!-- ── RESULTS ── -->
+        <div id="results" hidden>
+            <div class="results-nav">
+                <button id="recalc-btn">← change inputs</button>
+                <button id="share-btn">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    share image
+                </button>
+            </div>
+
+            <div class="results-meta">
+                <p class="results-ctx" id="results-ctx"></p>
+                <div class="results-unit-row">
+                    <button class="unit-btn active" data-u="metric">km</button>
+                    <button class="unit-btn"         data-u="imperial">mi</button>
+                </div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-cell"><div class="stat-lbl">per day</div>   <div class="stat-num" id="r-day"></div></div>
+                <div class="stat-cell"><div class="stat-lbl">last week</div> <div class="stat-num" id="r-week"></div></div>
+                <div class="stat-cell"><div class="stat-lbl">last month</div><div class="stat-num" id="r-month"></div></div>
+                <div class="stat-cell"><div class="stat-lbl">last year</div> <div class="stat-num" id="r-year"></div></div>
+            </div>
+
+            <div class="proj-box">
+                <div class="proj-label">
+                    next <input type="number" id="n-years-input" value="10" min="1" max="9999" aria-label="years"> years →
+                </div>
+                <div class="proj-val" id="n-years-val"></div>
+            </div>
+
+            <p class="section-head">per year, that's like...</p>
+            <div id="comp-list"></div>
+            <div class="assumptions" id="assumptions"></div>
+        </div>
+
+    </div>
+
+    <!-- ── SHARE MODAL ── -->
+    <div class="share-overlay" id="share-overlay">
+        <div class="share-card">
+            <div class="share-preview-wrap">
+                <!-- href filled dynamically; tap on mobile to open image in new tab → long-press to save -->
+                <a id="share-img-link" href="#" target="_blank" rel="noopener">
+                    <img id="share-preview-img" alt="your scroll stats">
+                </a>
+            </div>
+            <div class="share-action-row">
+                <button class="share-dl-btn"   id="share-dl-btn">↓ download</button>
+                <button class="share-copy-btn" id="share-copy-btn">⧉ copy image</button>
+                <a class="share-x-btn" id="share-x-link" href="#" target="_blank" rel="noopener">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+                    post to x
+                </a>
+            </div>
+            <p class="share-tip" id="share-tip">save the image and attach it when posting to x.</p>
+            <button class="share-close-btn" id="share-close-btn">close</button>
+        </div>
+    </div>
+
+<script>
+    const RATES = { twitter: 0.50, tiktok: 0.90, instagram: 0.70 };
+    const PLATFORM_NAMES = { twitter: 'twitter / x', tiktok: 'tiktok', instagram: 'instagram' };
+
+    const REFS = [
+        { name: 'your height',   dist: 1.75,            dm: '1.75 m',      dmi: '5.7 ft'      },
+        { name: 'Eiffel Tower',  dist: 330,             dm: '330 m',       dmi: '1,083 ft'    },
+        { name: 'Burj Khalifa',  dist: 828,             dm: '828 m',       dmi: '2,717 ft'    },
+        { name: 'Mount Everest', dist: 8849,            dm: '8.85 km',     dmi: '5.5 mi'      },
+        { name: 'marathon',      dist: 42195,           dm: '42.2 km',     dmi: '26.2 mi'     },
+        { name: 'around Earth',  dist: 40_075_000,      dm: '40,075 km',   dmi: '24,901 mi'   },
+        { name: 'Earth → Moon',  dist: 384_400_000,     dm: '384,400 km',  dmi: '238,855 mi'  },
+        { name: 'Earth → Sun',   dist: 149_600_000_000, dm: '149.6M km',   dmi: '92.96M mi'   },
+    ];
+
+    let platform     = 'twitter';
+    let mins         = 60;
+    let annualMeters = 0;
+    let unit         = 'metric';
+
+    // ─── Unit toggle (works for both form and results instances) ───
+    document.addEventListener('click', e => {
+        const btn = e.target.closest('.unit-btn');
+        if (!btn) return;
+        unit = btn.dataset.u;
+        document.querySelectorAll('.unit-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.u === unit);
+        });
+        if (!document.getElementById('results').hidden) refreshDisplay();
+    });
+
+    // ─── Formatters ───────────────────────────────────────────────
+    function fmtM(m) {
+        if (m < 1000)           return Math.round(m) + ' m';
+        const km = m / 1000;
+        if (km < 10)            return km.toFixed(1) + ' km';
+        if (km < 1_000_000)     return Math.round(km).toLocaleString() + ' km';
+        const Mkm = km / 1_000_000;
+        if (Mkm < 10)           return Mkm.toFixed(2) + 'M km';
+        if (Mkm < 1000)         return Mkm.toFixed(1) + 'M km';
+        return (Mkm / 1000).toFixed(2) + 'B km';
+    }
+
+    function fmtMi(m) {
+        const ft = m * 3.28084, mi = m / 1609.344;
+        if (ft < 5280)          return Math.round(ft).toLocaleString() + ' ft';
+        if (mi < 10)            return mi.toFixed(1) + ' mi';
+        if (mi < 1_000_000)     return Math.round(mi).toLocaleString() + ' mi';
+        const Mmi = mi / 1_000_000;
+        if (Mmi < 1000)         return Mmi.toFixed(1) + 'M mi';
+        return (Mmi / 1000).toFixed(2) + 'B mi';
+    }
+
+    function fmtDist(m) { return unit === 'metric' ? fmtM(m) : fmtMi(m); }
+    function dispRef(r)  { return unit === 'metric' ? r.dm : r.dmi; }
+
+    function numFmt(n) {
+        if (n >= 1e6)  return (n / 1e6).toFixed(1) + 'M';
+        if (n >= 1000) return Math.round(n).toLocaleString();
+        if (n >= 100)  return Math.round(n).toString();
+        if (n >= 10)   return n.toFixed(1);
+        return n.toFixed(2);
+    }
+
+    function pctFmt(ratio) {
+        const p = ratio * 100;
+        if (p >= 10)    return Math.round(p) + '%';
+        if (p >= 1)     return p.toFixed(1) + '%';
+        if (p >= 0.1)   return p.toFixed(2) + '%';
+        if (p >= 0.01)  return p.toFixed(3) + '%';
+        if (p >= 0.001) return p.toFixed(4) + '%';
+        return p.toFixed(5) + '%';
+    }
+
+    function fmtComp(annual, ref) {
+        const ratio = annual / ref;
+        if (ratio >= 1)    return { num: numFmt(ratio) + '×', sub: null, big: true };
+        if (ratio >= 1e-5) return { num: pctFmt(ratio), sub: null, big: true };
+        const yr = ref / annual;
+        let num;
+        if (yr >= 1e9)      num = (yr / 1e9).toFixed(1) + 'B yrs';
+        else if (yr >= 1e6) num = (yr / 1e6).toFixed(1) + 'M yrs';
+        else                num = Math.round(yr).toLocaleString() + ' yrs';
+        return { num, sub: 'to scroll there', big: false };
+    }
+
+    // ─── Scroll wheel ─────────────────────────────────────────────
+    const ITEM_W = 68;
+    const STEPS  = [];
+    for (let v = 10; v <= 1440; v += 10) STEPS.push(v);
+
+    let activeIdx  = 5;
+    let isDragging = false, dragX0, dragScroll0;
+    let snapTimer;
+
+    function wheelLabel(v) {
+        if (v < 60) return v + 'm';
+        if (v === 60) return '1h';
+        if (v % 60 === 0) return (v / 60) + 'h';
+        const h = Math.floor(v / 60), m = v % 60;
+        return h + 'h' + (m < 10 ? '0' : '') + m;
+    }
+
+    function hintText(v) {
+        if (v < 60)       return v + (v === 1 ? ' min / day' : ' mins / day');
+        if (v === 60)     return '1 hour / day';
+        if (v % 60 === 0) return (v / 60) + ' hours / day';
+        return Math.floor(v / 60) + 'h ' + (v % 60) + 'm / day';
+    }
+
+    function updateWheelClasses() {
+        const items = document.getElementById('wheel-track').children;
+        for (let i = 0; i < items.length; i++) {
+            const d = Math.abs(i - activeIdx);
+            items[i].className = 'wheel-item' + (d === 0 ? ' w0' : d === 1 ? ' w2' : d === 2 ? ' w1' : '');
+        }
+        document.getElementById('wheel-hint').textContent = hintText(STEPS[activeIdx]);
+    }
+
+    function snapToIdx(idx, smooth) {
+        document.getElementById('wheel-track').scrollTo({
+            left: idx * ITEM_W, behavior: smooth ? 'smooth' : 'instant'
+        });
+    }
+
+    (function buildWheel() {
+        const track = document.getElementById('wheel-track');
+        STEPS.forEach((v, i) => {
+            const el = document.createElement('div');
+            el.className = 'wheel-item';
+            el.textContent = wheelLabel(v);
+            el.addEventListener('click', () => {
+                activeIdx = i; mins = STEPS[i];
+                snapToIdx(i, true); updateWheelClasses();
+            });
+            track.appendChild(el);
+        });
+        requestAnimationFrame(() => { snapToIdx(activeIdx, false); updateWheelClasses(); });
+
+        track.addEventListener('scroll', () => {
+            const idx = Math.min(STEPS.length - 1, Math.max(0, Math.round(track.scrollLeft / ITEM_W)));
+            if (idx !== activeIdx) { activeIdx = idx; mins = STEPS[idx]; updateWheelClasses(); }
+            clearTimeout(snapTimer);
+            snapTimer = setTimeout(() => snapToIdx(activeIdx, true), 180);
+        });
+
+        track.addEventListener('mousedown', e => {
+            isDragging = true; dragX0 = e.clientX; dragScroll0 = track.scrollLeft;
+            e.preventDefault();
+        });
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            track.scrollLeft = dragScroll0 - (e.clientX - dragX0);
+        });
+        window.addEventListener('mouseup', () => {
+            if (!isDragging) return;
+            isDragging = false;
+            const idx = Math.min(STEPS.length - 1, Math.max(0, Math.round(track.scrollLeft / ITEM_W)));
+            activeIdx = idx; mins = STEPS[idx];
+            snapToIdx(idx, true); updateWheelClasses();
+        });
+    })();
+
+    // ─── Platform buttons ─────────────────────────────────────────
+    document.querySelectorAll('.plat-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.plat-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            platform = btn.dataset.p;
+            document.getElementById('platform-note').textContent = btn.dataset.note;
+        });
+    });
+
+    // ─── N-years ─────────────────────────────────────────────────
+    function updateNYears() {
+        const n = Math.max(1, parseInt(document.getElementById('n-years-input').value) || 10);
+        document.getElementById('n-years-val').textContent = fmtDist(annualMeters * n);
+    }
+    document.getElementById('n-years-input').addEventListener('input', updateNYears);
+
+    // ─── Render comparisons ───────────────────────────────────────
+    function renderComparisons() {
+        const list = document.getElementById('comp-list');
+        list.innerHTML = '';
+        REFS.forEach(ref => {
+            const { num, sub, big } = fmtComp(annualMeters, ref.dist);
+            const row = document.createElement('div');
+            row.className = 'comp-row';
+            row.innerHTML =
+                '<span class="comp-num' + (big ? '' : ' sm') + '">' + num + '</span>' +
+                '<span class="comp-name">' + ref.name +
+                ' <small>(' + dispRef(ref) + ')</small>' +
+                (sub ? '<span class="comp-sub">' + sub + '</span>' : '') +
+                '</span>';
+            list.appendChild(row);
+        });
+    }
+
+    // ─── Refresh display (called on unit toggle in results) ───────
+    function refreshDisplay() {
+        const perDay = mins * RATES[platform];
+        document.getElementById('r-day').textContent   = fmtDist(perDay);
+        document.getElementById('r-week').textContent  = fmtDist(perDay * 7);
+        document.getElementById('r-month').textContent = fmtDist(perDay * 30);
+        document.getElementById('r-year').textContent  = fmtDist(annualMeters);
+        updateNYears();
+        renderComparisons();
+    }
+
+    // ─── Calculate ────────────────────────────────────────────────
+    document.getElementById('calc-btn').addEventListener('click', () => {
+        const perDay = mins * RATES[platform];
+        annualMeters = perDay * 365;
+
+        document.getElementById('form-section').style.display = 'none';
+        document.getElementById('results').hidden = false;
+        document.getElementById('results-ctx').textContent = mins + ' min/day on ' + PLATFORM_NAMES[platform];
+
+        refreshDisplay();
+
+        document.getElementById('assumptions').innerHTML =
+            'estimated scroll rate: ~' + Math.round(RATES[platform] * 60) + ' m/hour on ' + PLATFORM_NAMES[platform] + '<br>' +
+            'based on ~15 cm phone screen height × swipes per minute of active use<br>' +
+            'day ×7 = week, ×30 = month, ×365 = year';
+
+        // Pre-generate share image blob in background so it's ready instantly when share is tapped
+        _sharedBlob = null;
+        if (_sharedBlobUrl) { URL.revokeObjectURL(_sharedBlobUrl); _sharedBlobUrl = null; }
+        _blobReady = _genBlob();
+    });
+
+    // ─── Recalculate ─────────────────────────────────────────────
+    document.getElementById('recalc-btn').addEventListener('click', () => {
+        document.getElementById('results').hidden = true;
+        document.getElementById('form-section').style.display = '';
+        _sharedBlob = null;
+        if (_sharedBlobUrl) { URL.revokeObjectURL(_sharedBlobUrl); _sharedBlobUrl = null; }
+        _blobReady = null;
+    });
+
+    // ─── Canvas image generation ──────────────────────────────────
+    function drawShareImage() {
+        const canvas = document.createElement('canvas');
+        const SCALE = 2, W = 1200, H = 628;
+        canvas.width = W * SCALE; canvas.height = H * SCALE;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(SCALE, SCALE);
+
+        const PAD = 58, CX = W / 2;
+
+        // Background
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, W, H);
+
+        // Bold border
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+        ctx.strokeRect(2, 2, W - 4, H - 4);
+
+        // ── Header row ──────────────────────────────────────────
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillStyle = '#bbb'; ctx.font = '13px "Courier New", monospace';
+        ctx.textAlign = 'left';
+        ctx.fillText('scroll meter', PAD, 44);
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#ccc'; ctx.font = '12px "Courier New", monospace';
+        ctx.fillText('0x45o.com/scrollmeter', W - PAD, 44);
+
+        // thin divider
+        ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(PAD, 58); ctx.lineTo(W - PAD, 58); ctx.stroke();
+
+        // ── Context line ────────────────────────────────────────
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#999'; ctx.font = '18px "Courier New", monospace';
+        ctx.fillText(mins + ' min/day on ' + PLATFORM_NAMES[platform], CX, 100);
+
+        // ── THE BIG NUMBER ──────────────────────────────────────
+        const yearDist = fmtDist(annualMeters);
+        let bigFont = 108;
+        ctx.font = 'bold ' + bigFont + 'px "Courier New", monospace';
+        while (ctx.measureText(yearDist).width > W - 2 * PAD - 40 && bigFont > 60) {
+            bigFont -= 4;
+            ctx.font = 'bold ' + bigFont + 'px "Courier New", monospace';
+        }
+        ctx.fillStyle = '#000';
+        ctx.fillText(yearDist, CX, 248);
+
+        ctx.fillStyle = '#aaa'; ctx.font = '18px "Courier New", monospace';
+        ctx.fillText('scrolled last year', CX, 285);
+
+        // divider
+        ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(PAD, 312); ctx.lineTo(W - PAD, 312); ctx.stroke();
+
+        // ── Comparisons ─────────────────────────────────────────
+        // top 3: skip height, take the 3 smallest refs that annual surpasses (highest ×N)
+        const imgComps = REFS
+            .filter(r => r.name !== 'your height' && annualMeters >= r.dist)
+            .slice(0, 3);
+
+        if (imgComps.length > 0) {
+            const line = imgComps.map(r => numFmt(annualMeters / r.dist) + '× ' + r.name).join('   ·   ');
+            let compFont = 23;
+            ctx.font = 'bold ' + compFont + 'px "Courier New", monospace';
+            while (ctx.measureText(line).width > W - 2 * PAD && compFont > 14) {
+                compFont -= 1;
+                ctx.font = 'bold ' + compFont + 'px "Courier New", monospace';
+            }
+            ctx.fillStyle = '#000';
+            ctx.fillText(line, CX, 370);
+
+            ctx.fillStyle = '#aaa'; ctx.font = '14px "Courier New", monospace';
+            ctx.fillText('per year', CX, 396);
+        } else {
+            // fallback: show pct of Eiffel Tower + height
+            const line = numFmt(annualMeters / 1.75) + '× your height   ·   ' + pctFmt(annualMeters / 330) + ' of the Eiffel Tower';
+            ctx.fillStyle = '#000'; ctx.font = 'bold 20px "Courier New", monospace';
+            ctx.fillText(line, CX, 375);
+            ctx.fillStyle = '#aaa'; ctx.font = '14px "Courier New", monospace';
+            ctx.fillText('per year', CX, 400);
+        }
+
+        // divider
+        ctx.strokeStyle = '#e8e8e8'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(PAD, 424); ctx.lineTo(W - PAD, 424); ctx.stroke();
+
+        // ── Projection ──────────────────────────────────────────
+        const n = Math.max(1, parseInt(document.getElementById('n-years-input').value) || 10);
+        const projDist = fmtDist(annualMeters * n);
+        ctx.fillStyle = '#444'; ctx.font = '18px "Courier New", monospace';
+        ctx.fillText('in ' + n + ' years:', CX, 465);
+        let projFont = 44;
+        ctx.font = 'bold ' + projFont + 'px "Courier New", monospace';
+        while (ctx.measureText(projDist).width > W - 2 * PAD && projFont > 28) {
+            projFont -= 2;
+            ctx.font = 'bold ' + projFont + 'px "Courier New", monospace';
+        }
+        ctx.fillStyle = '#000';
+        ctx.fillText(projDist, CX, 520);
+
+        // ── Footer ──────────────────────────────────────────────
+        ctx.strokeStyle = '#e0e0e0'; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(PAD, 556); ctx.lineTo(W - PAD, 556); ctx.stroke();
+
+        ctx.fillStyle = '#bbb'; ctx.font = '13px "Courier New", monospace';
+        ctx.fillText('how far have you scrolled? → 0x45o.com/scrollmeter', CX, 588);
+
+        return canvas;
+    }
+
+    // ─── Tweet text ───────────────────────────────────────────────
+    function getTweetText() {
+        const yearDist = fmtDist(annualMeters);
+        const bestRef = REFS.slice().reverse().find(r => r.name !== 'your height' && annualMeters >= r.dist);
+        let comp = bestRef
+            ? numFmt(annualMeters / bestRef.dist) + '× the ' + bestRef.name
+            : pctFmt(annualMeters / 330) + ' of the Eiffel Tower';
+        return 'i scrolled ' + yearDist + ' on ' + PLATFORM_NAMES[platform] + ' last year. ' +
+               "that's " + comp + '.\n\nhow far did you scroll? 0x45o.com/scrollmeter';
+    }
+
+    // ─── Share flow ───────────────────────────────────────────────
+    let _sharedBlob    = null;
+    let _sharedBlobUrl = null;
+    let _blobReady     = null; // Promise — pre-generated on calculate
+
+    // Generate blob and cache it
+    async function _genBlob() {
+        try {
+            const canvas = drawShareImage();
+            const blob   = await new Promise(res => canvas.toBlob(res, 'image/png'));
+            if (!blob) return null;
+            if (_sharedBlobUrl) URL.revokeObjectURL(_sharedBlobUrl);
+            _sharedBlob    = blob;
+            _sharedBlobUrl = URL.createObjectURL(blob);
+            return blob;
+        } catch { return null; }
+    }
+
+    function openShareModal() {
+        document.getElementById('share-preview-img').src  = _sharedBlobUrl;
+        document.getElementById('share-img-link').href    = _sharedBlobUrl; // tap-to-open for Android
+        document.getElementById('share-x-link').href      =
+            'https://twitter.com/intent/tweet?text=' + encodeURIComponent(getTweetText()) + '&via=0x45o';
+        document.getElementById('share-copy-btn').textContent = '⧉ copy image';
+
+        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+        document.getElementById('share-tip').innerHTML = isMobile
+            ? '<strong>android:</strong> tap the image above → hold → "save image".<br>then attach it in x.'
+            : 'save the image and attach it when posting to x.';
+
+        document.getElementById('share-overlay').classList.add('open');
+    }
+
+    document.getElementById('share-btn').addEventListener('click', async () => {
+        const shareBtn = document.getElementById('share-btn');
+
+        // Use pre-generated blob if available, otherwise wait for it / generate now
+        if (!_sharedBlob) {
+            const origHTML = shareBtn.innerHTML;
+            shareBtn.textContent = 'generating…';
+            shareBtn.disabled = true;
+            await (_blobReady || _genBlob());
+            shareBtn.innerHTML = origHTML;
+            shareBtn.disabled = false;
+        }
+
+        if (!_sharedBlob) {
+            openShareModal(); // even without blob, show modal with error gracefully
+            return;
+        }
+
+        // Try Web Share API — works natively on Android & iOS
+        if (typeof navigator.share === 'function') {
+            try {
+                const file = new File([_sharedBlob], 'scroll-meter.png', { type: 'image/png' });
+                const canFiles = navigator.canShare && navigator.canShare({ files: [file] });
+                await navigator.share(canFiles
+                    ? { files: [file], title: 'scroll meter', text: getTweetText() }
+                    : { title: 'scroll meter', text: getTweetText(), url: 'https://0x45o.com/scrollmeter' }
+                );
+                return;
+            } catch (e) {
+                if (e.name === 'AbortError') return; // user cancelled — do nothing
+                // Other error: fall through to modal
+            }
+        }
+
+        openShareModal();
+    });
+
+    // Download — append to body for Android compatibility
+    document.getElementById('share-dl-btn').addEventListener('click', () => {
+        if (!_sharedBlobUrl) return;
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href     = _sharedBlobUrl;
+        a.download = 'scroll-meter.png';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { try { document.body.removeChild(a); } catch {} }, 300);
+    });
+
+    document.getElementById('share-copy-btn').addEventListener('click', async () => {
+        if (!_sharedBlob) return;
+        const btn = document.getElementById('share-copy-btn');
+        try {
+            await navigator.clipboard.write([new ClipboardItem({ 'image/png': _sharedBlob })]);
+            btn.textContent = '✓ copied!';
+        } catch {
+            btn.textContent = 'not supported';
+        }
+        setTimeout(() => { btn.textContent = '⧉ copy image'; }, 2200);
+    });
+
+    document.getElementById('share-close-btn').addEventListener('click', () => {
+        document.getElementById('share-overlay').classList.remove('open');
+    });
+    document.getElementById('share-overlay').addEventListener('click', e => {
+        if (e.target === document.getElementById('share-overlay'))
+            document.getElementById('share-overlay').classList.remove('open');
+    });
+    document.addEventListener('keydown', e => {
+        if (e.key === 'Escape') document.getElementById('share-overlay').classList.remove('open');
+    });
+</script>
+</body>
+</html>
